@@ -1,0 +1,240 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AWS Pricing Calculator 見積もり合算ツール</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        body {
+            padding-top: 20px;
+        }
+        .url-input {
+            margin-bottom: 10px;
+        }
+        #loading {
+            display: none;
+            margin: 20px 0;
+        }
+        #result {
+            margin-top: 20px;
+            display: none;
+        }
+        .error-message {
+            color: #dc3545;
+            margin-top: 10px;
+            display: none;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="row">
+            <div class="col-lg-8 offset-lg-2">
+                <div class="card">
+                    <div class="card-header bg-primary text-white">
+                        <h3 class="card-title mb-0">AWS Pricing Calculator 見積もり合算ツール</h3>
+                    </div>
+                    <div class="card-body">
+                        <p class="card-text">複数のAWS Pricing Calculator見積もりURLを入力して、合算された見積もりを生成します。</p>
+                        
+                        <form id="mergeForm">
+                            <div id="urlInputs">
+                                <div class="url-input">
+                                    <div class="input-group">
+                                        <input type="url" class="form-control" placeholder="https://calculator.aws/#/estimate?id=..." required>
+                                        <button type="button" class="btn btn-danger remove-url" disabled>削除</button>
+                                    </div>
+                                </div>
+                                <div class="url-input">
+                                    <div class="input-group">
+                                        <input type="url" class="form-control" placeholder="https://calculator.aws/#/estimate?id=..." required>
+                                        <button type="button" class="btn btn-danger remove-url">削除</button>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <div class="mb-3 mt-3">
+                                <button type="button" id="addUrlBtn" class="btn btn-secondary">URLを追加</button>
+                                <button type="submit" class="btn btn-primary">見積もりを合算</button>
+                            </div>
+                        </form>
+                        
+                        <div id="loading" class="text-center">
+                            <div class="spinner-border text-primary" role="status">
+                                <span class="visually-hidden">処理中...</span>
+                            </div>
+                            <p>処理中...</p>
+                        </div>
+                        
+                        <div class="error-message" id="errorMessage"></div>
+                        
+                        <div id="result" class="alert alert-success">
+                            <h5>合算された見積もりURL:</h5>
+                            <div class="input-group mb-3">
+                                <input type="text" id="mergedUrl" class="form-control" readonly>
+                                <button class="btn btn-outline-secondary" type="button" id="copyBtn">コピー</button>
+                            </div>
+                            <a id="openUrl" href="#" target="_blank" class="btn btn-primary">見積もりを開く</a>
+                            
+                            <div class="mt-4">
+                                <h5>合算結果サマリー:</h5>
+                                <table class="table table-bordered">
+                                    <thead>
+                                        <tr>
+                                            <th>月額費用</th>
+                                            <th>初期費用</th>
+                                            <th>12ヶ月合計</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        <tr>
+                                            <td id="monthlyCost">$0.00</td>
+                                            <td id="upfrontCost">$0.00</td>
+                                            <td id="annualCost">$0.00</td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            const form = document.getElementById('mergeForm');
+            const urlInputs = document.getElementById('urlInputs');
+            const addUrlBtn = document.getElementById('addUrlBtn');
+            const loading = document.getElementById('loading');
+            const result = document.getElementById('result');
+            const errorMessage = document.getElementById('errorMessage');
+            const mergedUrlInput = document.getElementById('mergedUrl');
+            const openUrlBtn = document.getElementById('openUrl');
+            const copyBtn = document.getElementById('copyBtn');
+            
+            // URLフィールドを追加
+            addUrlBtn.addEventListener('click', function() {
+                const newInput = document.createElement('div');
+                newInput.className = 'url-input';
+                newInput.innerHTML = `
+                    <div class="input-group">
+                        <input type="url" class="form-control" placeholder="https://calculator.aws/#/estimate?id=..." required>
+                        <button type="button" class="btn btn-danger remove-url">削除</button>
+                    </div>
+                `;
+                urlInputs.appendChild(newInput);
+                
+                // 削除ボタンが少なくとも2つのURLがある場合のみ有効になるように
+                updateRemoveButtons();
+            });
+            
+            // URLフィールドの削除機能
+            urlInputs.addEventListener('click', function(e) {
+                if (e.target.classList.contains('remove-url')) {
+                    e.target.closest('.url-input').remove();
+                    updateRemoveButtons();
+                }
+            });
+            
+            // 削除ボタンの状態を更新
+            function updateRemoveButtons() {
+                const removeButtons = document.querySelectorAll('.remove-url');
+                const enableRemove = removeButtons.length > 2;
+                
+                removeButtons.forEach((btn, index) => {
+                    if (enableRemove) {
+                        btn.disabled = false;
+                    } else {
+                        // 最低2つのURLフィールドは残す
+                        btn.disabled = true;
+                    }
+                });
+            }
+            
+            // フォーム送信
+            form.addEventListener('submit', function(e) {
+                e.preventDefault();
+                
+                // 入力されたURLを収集
+                const inputs = document.querySelectorAll('#urlInputs input[type="url"]');
+                const urls = Array.from(inputs).map(input => input.value).filter(url => url.trim() !== '');
+                
+                if (urls.length === 0) {
+                    showError('少なくとも1つのURLを入力してください。');
+                    return;
+                }
+                
+                // 結果とエラーをリセット
+                hideError();
+                result.style.display = 'none';
+                loading.style.display = 'block';
+                
+                // APIリクエスト
+                fetch('/merge', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ urls }),
+                })
+                .then(response => response.json())
+                .then(data => {
+                    loading.style.display = 'none';
+                    
+                    if (data.success) {
+                        // 結果の表示
+                        mergedUrlInput.value = data.merged_url;
+                        openUrlBtn.href = data.merged_url;
+                        
+                        // コスト情報の表示
+                        document.getElementById('monthlyCost').textContent = 
+                            `$${parseFloat(data.data.total_cost.monthly).toFixed(2)}`;
+                        document.getElementById('upfrontCost').textContent = 
+                            `$${parseFloat(data.data.total_cost.upfront).toFixed(2)}`;
+                        document.getElementById('annualCost').textContent = 
+                            `$${parseFloat(data.data.total_cost["12_months"]).toFixed(2)}`;
+                            
+                        result.style.display = 'block';
+                    } else {
+                        showError(data.error || '見積もりの合算に失敗しました。');
+                    }
+                })
+                .catch(error => {
+                    loading.style.display = 'none';
+                    showError('サーバーとの通信中にエラーが発生しました。');
+                    console.error('Error:', error);
+                });
+            });
+            
+            // URLのコピー機能
+            copyBtn.addEventListener('click', function() {
+                mergedUrlInput.select();
+                document.execCommand('copy');
+                copyBtn.textContent = 'コピー済み!';
+                setTimeout(() => {
+                    copyBtn.textContent = 'コピー';
+                }, 2000);
+            });
+            
+            // エラーメッセージの表示
+            function showError(message) {
+                errorMessage.textContent = message;
+                errorMessage.style.display = 'block';
+            }
+            
+            // エラーメッセージの非表示
+            function hideError() {
+                errorMessage.style.display = 'none';
+                errorMessage.textContent = '';
+            }
+            
+            // 初期状態で削除ボタンの状態を設定
+            updateRemoveButtons();
+        });
+    </script>
+</body>
+</html>
