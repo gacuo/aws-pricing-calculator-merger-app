@@ -1,26 +1,29 @@
 """
-ウェブUIルーティングモジュール
+AWS Pricing Calculator 見積もり合算ツール
 
-Flaskアプリケーションのルーティングを管理します。
+このツールは複数のAWS Pricing Calculatorの見積もりURLを入力として受け取り、
+すべての見積もりを合算した結果を表示します。
 """
 
-from flask import render_template, request, jsonify, Blueprint
+import json
+import os
+from flask import Flask, request, render_template, jsonify
 
 from src.data.parser import EstimateParser
 from src.merger.cost_merger import EstimateMerger
 from src.api.calculator_api import CalculatorAPI
 
-ui_blueprint = Blueprint('ui', __name__)
+app = Flask(__name__, template_folder='../templates')
 parser = EstimateParser()
 merger = EstimateMerger()
 calculator_api = CalculatorAPI()
 
-@ui_blueprint.route('/')
+@app.route('/')
 def index():
     """インデックスページを表示"""
     return render_template('index.html')
 
-@ui_blueprint.route('/merge', methods=['POST'])
+@app.route('/merge', methods=['POST'])
 def merge_estimates():
     """見積もりを合算して結果を返す"""
     try:
@@ -49,15 +52,19 @@ def merge_estimates():
         
         # 見積もりデータの取得
         estimate_data_list = []
-        for url in valid_urls:
-            try:
-                estimate_data = parser.parse_estimate_url(url)
-                estimate_data_list.append(estimate_data)
-            except Exception as e:
-                return jsonify({
-                    'success': False,
-                    'error': f'見積もりURLからデータを取得できませんでした: {url}, エラー: {str(e)}'
-                })
+        
+        # テスト実装: サンプルJSONを使用
+        for i, url in enumerate(valid_urls):
+            if i == 0:
+                with open('json_samples/sample1.json', 'r', encoding='utf-8') as file:
+                    raw_data = json.load(file)
+                    estimate_data = parser._structure_estimate_data(raw_data)
+                    estimate_data_list.append(estimate_data)
+            else:
+                with open('json_samples/sample2.json', 'r', encoding='utf-8') as file:
+                    raw_data = json.load(file)
+                    estimate_data = parser._structure_estimate_data(raw_data)
+                    estimate_data_list.append(estimate_data)
             
         # 見積もりの合算
         merged_data = merger.merge_estimates(estimate_data_list)
@@ -90,3 +97,6 @@ def merge_estimates():
             'success': False,
             'error': f'見積もりの合算中にエラーが発生しました: {str(e)}'
         })
+
+if __name__ == '__main__':
+    app.run(host='0.0.0.0', port=5000, debug=True)

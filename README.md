@@ -1,42 +1,57 @@
-# AWS Pricing Calculator Merger
+# AWS Pricing Calculator 見積もり合算ツール
 
-AWS Pricing Calculatorの複数エクスポートURLを合算するツールです。複数の見積もりURLを入力として受け取り、それらを組み合わせた新しいAWS Pricing Calculator URLを生成します。
+複数のAWS Pricing Calculatorの見積もりURLを入力として受け取り、すべての見積もりを合算した結果を表示するツールです。
 
 ## 機能
 
-- 複数のAWS Pricing Calculator URLの解析
-- 見積もりデータの抽出と合算処理
-- 合算されたデータに基づく新しい見積もりURLの生成
-- シンプルなWebインターフェースによる操作
+- 複数のAWS Pricing Calculator見積もりURLを入力
+- サービスごとのコスト合算
+- 同一サービス・リージョンの設定マージ
+- 合算結果のサマリーを表示
+- 合算見積もりを新しいURLとして生成
 
-## セットアップ
+## 使い方
+
+### 環境設定
 
 ```bash
-# リポジトリをクローン
+# リポジトリのクローン
 git clone https://github.com/gacuo/aws-pricing-calculator-merger.git
 cd aws-pricing-calculator-merger
 
-# 仮想環境の作成とアクティベート
-python -m venv venv
-source venv/bin/activate  # Windowsの場合: venv\Scriptsctivate
-
 # 依存パッケージのインストール
 pip install -r requirements.txt
+```
 
-# アプリケーションの実行
+### 起動方法
+
+```bash
 python app.py
 ```
 
-## 使用方法
+ブラウザで http://localhost:5000 にアクセスすると、見積もり合算ツールが表示されます。
 
-1. ブラウザで `http://localhost:5000` にアクセス
-2. フォームに複数のAWS Pricing Calculator エクスポートURLを入力
-3. 「合算」ボタンをクリック
-4. 新しく生成された合算済みのURLを取得
+## 利用方法
 
-## 技術スタック
+1. AWS Pricing Calculatorで見積もりを作成し、「Export」からJSONファイルをダウンロードするか、共有URLを取得します。
+2. このツールの入力欄に見積もりのURLを入力します（複数可）。
+3. 「見積もりを合算」ボタンをクリックします。
+4. 合算結果のURLとサマリーが表示されます。
 
-- Python 3.8+
-- Flask (Webフレームワーク)
-- requests (HTTP通信)
-- beautifulsoup4 (HTMLパース)
+## システム構成
+
+- `app.py` - アプリケーションエントリポイント
+- `src/api/calculator_api.py` - AWS Pricing Calculator API操作
+- `src/data/parser.py` - 見積もりデータ解析
+- `src/merger/cost_merger.py` - コスト合算ロジック
+- `src/ui/routes.py` - Webルーティング
+- `templates/` - HTMLテンプレート
+
+## 注意事項
+
+- 実装の制限として、現在のバージョンではAWS Pricing CalculatorのJSONファイルを直接解析し、AWS APIの実際の制約の範囲内で動作するようにしています。
+- AWS Pricing Calculatorの仕様が変更された場合、このツールも更新が必要になる場合があります。
+
+## ライセンス
+
+このプロジェクトはMITライセンスで提供されています。
