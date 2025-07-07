@@ -1,1 +1,3 @@
-# API操作パッケージ初期化ファイル
+"""
+AWS Pricing Calculator API連携パッケージ
+"""

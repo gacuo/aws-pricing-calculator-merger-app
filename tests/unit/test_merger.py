@@ -1,174 +1,185 @@
-"""
-EstimateMergerクラスの単体テスト
-"""
+import unittest
+from src.merger.estimate_merger import EstimateMerger
 
-import pytest
-from src.merger.cost_merger import EstimateMerger
-
-
-class TestEstimateMerger:
-    """EstimateMergerクラスのテスト"""
-    
-    def setup_method(self):
-        """テスト前の準備"""
+class TestEstimateMerger(unittest.TestCase):
+    def setUp(self):
         self.merger = EstimateMerger()
-        
-        # テスト用のデータ
         self.estimate1 = {
-            "name": "Estimate 1",
-            "total_cost": {
-                "upfront": "100.00",
-                "monthly": "200.00",
-                "12_months": "2500.00"
-            },
-            "metadata": {
-                "currency": "USD",
-                "created_on": "2023-01-01",
-                "region": "ap-northeast-1",
-                "share_url": "https://calculator.aws/#/estimate?id=12345"
-            },
-            "services": [
+            'name': 'Estimate 1',
+            'currency': 'USD',
+            'services': [
                 {
-                    "service_name": "AWS Lambda",
-                    "region": "ap-northeast-1",
-                    "upfront_cost": "0.00",
-                    "monthly_cost": "50.00",
-                    "yearly_cost": "600.00",
-                    "description": "Test Lambda",
-                    "config": {
-                        "memory": 128,
-                        "requests": 1000000
+                    'name': 'Amazon EC2',
+                    'region': 'us-east-1',
+                    'monthlyCost': 100.0,
+                    'upfrontCost': 50.0,
+                    'description': 'EC2 instances',
+                    'config': {
+                        'instanceType': 't3.large',
+                        'count': 2
                     }
                 },
                 {
-                    "service_name": "Amazon S3",
-                    "region": "ap-northeast-1",
-                    "upfront_cost": "0.00",
-                    "monthly_cost": "30.00",
-                    "yearly_cost": "360.00",
-                    "description": "Storage",
-                    "config": {
-                        "storage": "100GB"
+                    'name': 'Amazon S3',
+                    'region': 'us-east-1',
+                    'monthlyCost': 30.0,
+                    'upfrontCost': 0.0,
+                    'description': 'S3 storage',
+                    'config': {
+                        'storage': {
+                            'totalGB': 100,
+                            'standardGB': 100
+                        }
                     }
                 }
             ]
         }
-        
         self.estimate2 = {
-            "name": "Estimate 2",
-            "total_cost": {
-                "upfront": "50.00",
-                "monthly": "100.00",
-                "12_months": "1250.00"
-            },
-            "metadata": {
-                "currency": "USD",
-                "created_on": "2023-01-02",
-                "region": "ap-northeast-1",
-                "share_url": "https://calculator.aws/#/estimate?id=67890"
-            },
-            "services": [
+            'name': 'Estimate 2',
+            'currency': 'USD',
+            'services': [
                 {
-                    "service_name": "AWS Lambda",
-                    "region": "ap-northeast-1",
-                    "upfront_cost": "0.00",
-                    "monthly_cost": "25.00",
-                    "yearly_cost": "300.00",
-                    "description": "Another Lambda",
-                    "config": {
-                        "memory": 256,
-                        "requests": 500000
+                    'name': 'Amazon EC2',
+                    'region': 'us-east-1',
+                    'monthlyCost': 200.0,
+                    'upfrontCost': 100.0,
+                    'description': 'EC2 instances',
+                    'config': {
+                        'instanceType': 't3.xlarge',
+                        'count': 1
                     }
                 },
                 {
-                    "service_name": "Amazon EC2",
-                    "region": "ap-northeast-1",
-                    "upfront_cost": "50.00",
-                    "monthly_cost": "75.00",
-                    "yearly_cost": "950.00",
-                    "description": "Compute",
-                    "config": {
-                        "instance_type": "t3.micro"
+                    'name': 'Amazon RDS',
+                    'region': 'us-east-1',
+                    'monthlyCost': 150.0,
+                    'upfrontCost': 0.0,
+                    'description': 'RDS instances',
+                    'config': {
+                        'instanceType': 'db.t3.large',
+                        'count': 1,
+                        'storageGB': 100
                     }
                 }
             ]
         }
-    
-    def test_merge_estimates_empty_list(self):
-        """空のリストを渡すとValueErrorが発生することを確認"""
-        with pytest.raises(ValueError):
+
+    def test_merge_estimates_empty(self):
+        with self.assertRaises(ValueError):
             self.merger.merge_estimates([])
-    
-    def test_merge_estimates_single_estimate(self):
-        """単一の見積もりを渡すと、そのまま返されることを確認"""
+
+    def test_merge_estimates_single(self):
         result = self.merger.merge_estimates([self.estimate1])
-        assert result == self.estimate1
-    
+        self.assertEqual(result, self.estimate1)
+
     def test_merge_estimates_multiple(self):
-        """複数の見積もりが正しく合算されることを確認"""
         result = self.merger.merge_estimates([self.estimate1, self.estimate2])
+        self.assertIn('name', result)
+        self.assertIn('currency', result)
+        self.assertIn('services', result)
         
-        # 見積もり名の確認
-        assert "Merged:" in result["name"]
-        assert "Estimate 1" in result["name"]
-        assert "Estimate 2" in result["name"]
+        # 合算後のサービス数の確認（EC2は統合されるので3つ）
+        self.assertEqual(len(result['services']), 3)
         
-        # メタデータは最初の見積もりのものが使用されることを確認
-        assert result["metadata"]["created_on"] == "2023-01-01"
-        assert result["metadata"]["share_url"] == "https://calculator.aws/#/estimate?id=12345"
+        # サービス名によるグループ化の確認
+        service_names = [s['name'] for s in result['services']]
+        self.assertIn('Amazon EC2', service_names)
+        self.assertIn('Amazon S3', service_names)
+        self.assertIn('Amazon RDS', service_names)
+
+    def test_generate_merged_name(self):
+        name = self.merger._generate_merged_name([self.estimate1, self.estimate2])
+        self.assertEqual(name, "Merged: Estimate 1 + Estimate 2")
         
-        # サービス数の確認 (AWS Lambda, Amazon S3, Amazon EC2)
-        assert len(result["services"]) == 3
+        # 3つ以上の場合
+        name = self.merger._generate_merged_name([self.estimate1, self.estimate2, {'name': 'Estimate 3'}])
+        self.assertEqual(name, "Merged: Estimate 1 + 2 others")
+
+    def test_get_common_currency(self):
+        currency = self.merger._get_common_currency([self.estimate1, self.estimate2])
+        self.assertEqual(currency, "USD")
         
-        # AWS Lambdaのコストが合算されていることを確認
-        lambda_service = next(s for s in result["services"] if s["service_name"] == "AWS Lambda")
-        assert float(lambda_service["monthly_cost"].replace(",", "")) == 75.0  # 50.00 + 25.00
-        
-        # 説明が統合されていることを確認
-        assert "Test Lambda" in lambda_service["description"]
-        assert "Another Lambda" in lambda_service["description"]
-        
-        # 設定が統合されていることを確認
-        assert lambda_service["config"]["memory"] == [128, 256]
-        assert lambda_service["config"]["requests"] == [1000000, 500000]
-        
-        # 合計コストの確認
-        assert float(result["total_cost"]["upfront"].replace(",", "")) == 50.0  # 0.00 + 50.00
-        assert float(result["total_cost"]["monthly"].replace(",", "")) == 180.0  # 50.00 + 30.00 + 25.00 + 75.00
-    
+        # 複数の通貨がある場合
+        estimate3 = {'currency': 'JPY'}
+        currency = self.merger._get_common_currency([self.estimate1, estimate3])
+        self.assertEqual(currency, "USD")  # デフォルトはUSD
+
     def test_merge_services(self):
-        """同一サービスのデータが正しく合算されることを確認"""
-        service1 = {
-            "service_name": "AWS Lambda",
-            "region": "ap-northeast-1",
-            "upfront_cost": "10.00",
-            "monthly_cost": "20.00",
-            "yearly_cost": "250.00",
-            "description": "Service 1",
-            "config": {"key1": "value1", "common": "common1"}
-        }
+        services = self.merger._merge_services([self.estimate1, self.estimate2])
+        self.assertEqual(len(services), 3)
         
-        service2 = {
-            "service_name": "AWS Lambda",
-            "region": "ap-northeast-1",
-            "upfront_cost": "5.00",
-            "monthly_cost": "15.00",
-            "yearly_cost": "185.00",
-            "description": "Service 2",
-            "config": {"key2": "value2", "common": "common2"}
-        }
+        # EC2サービスのコストが合算されているか確認
+        ec2_service = next((s for s in services if s['name'] == 'Amazon EC2'), None)
+        self.assertIsNotNone(ec2_service)
+        self.assertEqual(ec2_service['monthlyCost'], 300.0)  # 100 + 200
+        self.assertEqual(ec2_service['upfrontCost'], 150.0)  # 50 + 100
+
+    def test_merge_service_group(self):
+        services = [
+            {
+                'name': 'Amazon EC2',
+                'region': 'us-east-1',
+                'monthlyCost': 100.0,
+                'upfrontCost': 50.0,
+                'description': 'EC2 instances',
+            },
+            {
+                'name': 'Amazon EC2',
+                'region': 'us-east-1',
+                'monthlyCost': 200.0,
+                'upfrontCost': 100.0,
+                'description': 'More EC2 instances',
+            }
+        ]
         
-        result = self.merger._merge_services([service1, service2])
+        result = self.merger._merge_service_group(services)
+        self.assertEqual(result['name'], 'Amazon EC2')
+        self.assertEqual(result['region'], 'us-east-1')
+        self.assertEqual(result['monthlyCost'], 300.0)
+        self.assertEqual(result['upfrontCost'], 150.0)
+        self.assertIn('Combined:', result['description'])
+
+    def test_merge_configs(self):
+        # EC2設定のマージ
+        ec2_configs = [
+            {
+                'instanceType': 't3.large',
+                'count': 2
+            },
+            {
+                'instanceType': 't3.xlarge',
+                'count': 1
+            }
+        ]
         
-        # コストの合算を確認
-        assert float(result["upfront_cost"].replace(",", "")) == 15.0  # 10.00 + 5.00
-        assert float(result["monthly_cost"].replace(",", "")) == 35.0  # 20.00 + 15.00
-        assert float(result["yearly_cost"].replace(",", "")) == 435.0  # 250.00 + 185.00
+        merged = self.merger._merge_configs(ec2_configs, 'Amazon EC2')
+        self.assertEqual(merged['serviceCode'], 'ec2')
+        self.assertIn('t3.large', merged['instances'])
+        self.assertIn('t3.xlarge', merged['instances'])
+        self.assertEqual(merged['instances']['t3.large']['count'], 2)
+        self.assertEqual(merged['instances']['t3.xlarge']['count'], 1)
         
-        # 説明の統合を確認
-        assert "Service 1, Service 2" in result["description"] or "Service 2, Service 1" in result["description"]
+        # S3設定のマージ
+        s3_configs = [
+            {
+                'storage': {
+                    'totalGB': 100,
+                    'standardGB': 100
+                }
+            },
+            {
+                'storage': {
+                    'totalGB': 200,
+                    'glacierGB': 100
+                }
+            }
+        ]
         
-        # 設定の統合を確認
-        assert result["config"]["key1"] == "value1"
-        assert result["config"]["key2"] == "value2"
-        assert result["config"]["common"] == ["common1", "common2"]
+        merged = self.merger._merge_configs(s3_configs, 'Amazon S3')
+        self.assertEqual(merged['serviceCode'], 's3')
+        self.assertEqual(merged['storage']['totalGB'], 300)
+        self.assertEqual(merged['storage']['standardGB'], 100)
+        self.assertEqual(merged['storage']['glacierGB'], 100)
+
+if __name__ == '__main__':
+    unittest.main()

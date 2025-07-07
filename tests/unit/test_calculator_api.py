@@ -1,101 +1,96 @@
-"""
-CalculatorAPIクラスの単体テスト
-"""
-
-import pytest
+import unittest
+from unittest.mock import patch, MagicMock
 import json
 import os
-from unittest.mock import patch, mock_open
 from src.api.calculator_api import CalculatorAPI
 
-
-class TestCalculatorAPI:
-    """CalculatorAPIクラスのテスト"""
-    
-    def setup_method(self):
-        """テスト前の準備"""
-        self.api = CalculatorAPI()
-        
-        # テスト用のデータ
-        self.merged_data = {
-            "name": "Merged Estimate",
-            "total_cost": {
-                "upfront": "50.00",
-                "monthly": "100.00",
-                "12_months": "1250.00"
-            },
-            "metadata": {
-                "currency": "USD",
-                "created_on": "2023-01-01",
-                "region": "ap-northeast-1",
-                "share_url": "https://calculator.aws/#/estimate?id=12345"
-            },
-            "services": [
+class TestCalculatorAPI(unittest.TestCase):
+    def setUp(self):
+        self.calculator_api = CalculatorAPI()
+        self.test_data = {
+            'name': 'Test Estimate',
+            'currency': 'USD',
+            'services': [
                 {
-                    "service_name": "AWS Lambda",
-                    "region": "ap-northeast-1",
-                    "upfront_cost": "0.00",
-                    "monthly_cost": "50.00",
-                    "yearly_cost": "600.00",
-                    "description": "Lambda Service",
-                    "config": {
-                        "memory": 128,
-                        "requests": 1000000
-                    }
+                    'name': 'Amazon EC2',
+                    'region': 'us-east-1',
+                    'monthlyCost': 100.0,
+                    'upfrontCost': 0.0,
+                    'description': 'EC2 instances'
+                },
+                {
+                    'name': 'Amazon S3',
+                    'region': 'us-east-1',
+                    'monthlyCost': 50.0,
+                    'upfrontCost': 0.0,
+                    'description': 'S3 storage'
                 }
             ]
         }
-    
-    @patch("uuid.uuid4")
-    @patch("builtins.open", new_callable=mock_open)
-    def test_create_merged_estimate(self, mock_file, mock_uuid):
-        """合算された見積もりデータからAWS Pricing Calculator形式のデータが生成されることを確認"""
-        # UUIDをモック
-        mock_uuid.return_value.hex = "abcdef1234567890"
-        
-        result = self.api.create_merged_estimate(self.merged_data)
-        
-        # ファイル書き込みの確認
-        mock_file.assert_called_once()
-        file_handle = mock_file.return_value.__enter__.return_value
-        
-        # write()への呼び出しがあることを確認
-        assert file_handle.write.called
-        
-        # 返値の確認
-        assert "url" in result
-        assert "instructions" in result
-        assert "filename" in result
-        
-        # URLが正しい形式であることを確認
-        assert result["url"].startswith("https://calculator.aws/#/estimate?id=")
-        
-        # インポート手順が含まれていることを確認
-        assert "JSONファイルをダウンロード" in result["instructions"]
-        assert "AWS Pricing Calculator" in result["instructions"]
-    
-    def test_convert_to_calculator_format(self):
-        """内部形式のデータがAWS Pricing Calculator形式に正しく変換されることを確認"""
-        result = self.api._convert_to_calculator_format(self.merged_data)
-        
-        # 基本情報の確認
-        assert result["name"] == "Merged Estimate"
-        assert result["currency"] == "USD"
-        assert result["created"] == "2023-01-01"
-        assert result["totalUpfront"] == "50.00"
-        assert result["totalMonthly"] == "100.00"
-        assert result["totalAnnual"] == "1250.00"
-        
-        # サービス情報の確認
-        assert "groups" in result
-        assert "services" in result["groups"]
-        assert len(result["groups"]["services"]) == 1
-        
-        service = result["groups"]["services"][0]
-        assert service["name"] == "AWS Lambda"
-        assert service["region"] == "ap-northeast-1"
-        assert service["upfrontCost"] == "0.00"
-        assert service["monthlyCost"] == "50.00"
-        assert service["description"] == "Lambda Service"
-        assert service["config"]["memory"] == 128
-        assert service["config"]["requests"] == 1000000
+
+    def test_generate_calculator_url(self):
+        url = self.calculator_api.generate_calculator_url(self.test_data)
+        self.assertTrue(url.startswith('https://calculator.aws/#/estimate?id='))
+        self.assertGreater(len(url), len('https://calculator.aws/#/estimate?id='))
+
+    def test_calculate_total_cost(self):
+        total_cost = self.calculator_api.calculate_total_cost(self.test_data)
+        self.assertEqual(total_cost['monthly'], '150.00 USD')
+        self.assertEqual(total_cost['upfront'], '0.00 USD')
+        self.assertEqual(total_cost['12_months'], '1,800.00 USD')
+
+    def test_calculate_total_cost_empty_services(self):
+        data = {'services': []}
+        total_cost = self.calculator_api.calculate_total_cost(data)
+        self.assertEqual(total_cost['monthly'], '0.00 USD')
+        self.assertEqual(total_cost['upfront'], '0.00 USD')
+        self.assertEqual(total_cost['12_months'], '0.00 USD')
+
+    def test_calculate_total_cost_error(self):
+        with patch.object(self.calculator_api, 'calculate_total_cost', side_effect=Exception('Test error')):
+            total_cost = self.calculator_api.calculate_total_cost({})
+            self.assertEqual(total_cost['monthly'], '0.00 USD')
+            self.assertEqual(total_cost['upfront'], '0.00 USD')
+            self.assertEqual(total_cost['12_months'], '0.00 USD')
+
+    def test_extract_services(self):
+        services = self.calculator_api.extract_services(self.test_data)
+        self.assertEqual(len(services), 2)
+        self.assertEqual(services[0]['service_name'], 'Amazon EC2')
+        self.assertEqual(services[0]['region'], 'us-east-1')
+        self.assertEqual(services[0]['monthly_cost'], '100.00 USD')
+        self.assertEqual(services[0]['upfront_cost'], '0.00 USD')
+
+    def test_extract_services_empty(self):
+        services = self.calculator_api.extract_services({})
+        self.assertEqual(services, [])
+
+    @patch('builtins.open', new_callable=unittest.mock.mock_open)
+    def test_export_to_csv(self, mock_open):
+        result = self.calculator_api.export_to_csv(self.test_data, 'test-id', '/tmp')
+        self.assertEqual(result, '/tmp/test-id.csv')
+        mock_open.assert_called_once_with('/tmp/test-id.csv', 'w', newline='')
+
+    @patch('builtins.open', new_callable=unittest.mock.mock_open)
+    @patch('src.api.calculator_api.CalculatorAPI.extract_services', side_effect=Exception('Test error'))
+    def test_export_to_csv_error(self, mock_extract, mock_open):
+        result = self.calculator_api.export_to_csv(self.test_data, 'test-id', '/tmp')
+        self.assertEqual(result, '/tmp/test-id.csv')
+        mock_open.assert_called()
+
+    @patch('builtins.open', new_callable=unittest.mock.mock_open)
+    def test_export_to_pdf(self, mock_open):
+        result = self.calculator_api.export_to_pdf(self.test_data, 'test-id', '/tmp')
+        self.assertEqual(result, '/tmp/test-id.pdf')
+        mock_open.assert_called_once_with('/tmp/test-id.pdf', 'w', newline='')
+
+    @patch('builtins.open', new_callable=unittest.mock.mock_open)
+    @patch('src.api.calculator_api.CalculatorAPI.extract_services', side_effect=Exception('Test error'))
+    def test_export_to_pdf_error(self, mock_extract, mock_open):
+        result = self.calculator_api.export_to_pdf(self.test_data, 'test-id', '/tmp')
+        self.assertEqual(result, '/tmp/test-id.pdf')
+        mock_open.assert_called()
+
+
+if __name__ == '__main__':
+    unittest.main()
