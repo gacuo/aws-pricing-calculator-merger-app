@@ -1,0 +1,462 @@
+{
+	"Name": "AWS利用料(リリース時)_STG・DEV",
+	"Total Cost": {
+		"monthly": "20701.40",
+		"upfront": "0.00",
+		"12 months": "248416.80"
+	},
+	"Metadata": {
+		"Currency": "USD",
+		"Locale": "en_US",
+		"Created On": "7/7/2025",
+		"Legal Disclaimer": "AWS Pricing Calculator provides only an estimate of your AWS fees and doesn't include any taxes that might apply. Your actual fees depend on a variety of factors, including your actual usage of AWS services.",
+		"Share Url": "https://calculator.aws/#/estimate?id=72c88d520c574a17917faba19453b9a792a994c9"
+	},
+	"Groups": {
+		"Services": [
+			{
+				"Service Name": "AWS IAM Access Analyzer",
+				"Description": "100IAMユーザ/月、100IAMロール/月",
+				"Region": "Asia Pacific (Tokyo)",
+				"Service Cost": {
+					"monthly": "40.00",
+					"upfront": "0.00",
+					"12 months": "480.00"
+				},
+				"Properties": {
+					"Number of accounts to monitor": "1",
+					"Average roles per account": "100",
+					"Average users per account": "100",
+					"Number of analyzers per account": "1"
+				}
+			},
+			{
+				"Service Name": "Amazon API Gateway",
+				"Description": "REST API 1TPS/月",
+				"Region": "Asia Pacific (Tokyo)",
+				"Service Cost": {
+					"monthly": "11.17",
+					"upfront": "0.00",
+					"12 months": "134.04"
+				},
+				"Properties": {
+					"HTTP API requests units": "exact number",
+					"Average size of each request": "34 KB",
+					"REST API request units": "exact number",
+					"Cache memory size (GB)": "None",
+					"WebSocket message units": "thousands",
+					"Average message size": "32 KB",
+					"Requests": "1 per second"
+				}
+			},
+			{
+				"Service Name": "Application Load Balancer",
+				"Description": "10TB/月、ALB数：1",
+				"Region": "Asia Pacific (Tokyo)",
+				"Service Cost": {
+					"monthly": "99.66",
+					"upfront": "0.00",
+					"12 months": "1195.92"
+				},
+				"Properties": {
+					"Number of Application Load Balancers": "1"
+				}
+			},
+			{
+				"Service Name": "S3 Standard",
+				"Description": "11TB",
+				"Region": "Asia Pacific (Tokyo)",
+				"Service Cost": {
+					"monthly": "281.60",
+					"upfront": "0.00",
+					"12 months": "3379.20"
+				},
+				"Properties": {
+					"S3 Standard storage": "11 TB per month"
+				}
+			},
+			{
+				"Service Name": "AWS CodeBuild",
+				"Description": "100build/月",
+				"Region": "Asia Pacific (Tokyo)",
+				"Service Cost": {
+					"monthly": "120.00",
+					"upfront": "0.00",
+					"12 months": "1440.00"
+				},
+				"Properties": {
+					"AWS CodeBuild Compute Type": "On-Demand EC2",
+					"Number of builds in a month": "1",
+					"Operating system": "Linux",
+					"Search Instance Type": "arm1.2xlarge",
+					"Number of instances": "1",
+					"Number of sandboxes": "1"
+				}
+			},
+			{
+				"Service Name": "AWS CodePipeline",
+				"Description": "11パイプライン/月",
+				"Region": "Asia Pacific (Tokyo)",
+				"Service Cost": {
+					"monthly": "10.00",
+					"upfront": "0.00",
+					"12 months": "120.00"
+				},
+				"Properties": {
+					"Number of active pipelines of type V1 used per account per month": "11"
+				}
+			},
+			{
+				"Service Name": "Amazon Elastic Container Registry",
+				"Description": "1TB/月（ストレージ）",
+				"Region": "Asia Pacific (Tokyo)",
+				"Service Cost": {
+					"monthly": "102.40",
+					"upfront": "0.00",
+					"12 months": "1228.80"
+				},
+				"Properties": {
+					"DT Inbound: Internet": "0 GB per month",
+					"DT Outbound: Internet": "0 GB per month",
+					"Amount of data stored": "1 TB per month"
+				}
+			},
+			{
+				"Service Name": "Amazon Route 53",
+				"Description": "1ゾーン,100リソースレコード,1億リクエスト/月",
+				"Region": "Asia Pacific (Tokyo)",
+				"Service Cost": {
+					"monthly": "40.65",
+					"upfront": "0.00",
+					"12 months": "487.80"
+				},
+				"Properties": {
+					"Hosted Zones": "1",
+					"Additional Records in Hosted Zones": "100"
+				}
+			},
+			{
+				"Service Name": "AWS Network Firewall",
+				"Description": "転送量1TB/月,  2エンドポイント",
+				"Region": "Asia Pacific (Tokyo)",
+				"Service Cost": {
+					"monthly": "635.36",
+					"upfront": "0.00",
+					"12 months": "7624.32"
+				},
+				"Properties": {
+					"Number of AWS Network Firewall endpoints": "2",
+					"Monthly usage per endpoint": "720 hours",
+					"Data processed per month": "1 TB"
+				}
+			},
+			{
+				"Service Name": "Network Address Translation (NAT) Gateway",
+				"Description": "転送量1TB(512GB * 2)/月,  2NAT GW",
+				"Region": "Asia Pacific (Tokyo)",
+				"Service Cost": {
+					"monthly": "154.00",
+					"upfront": "0.00",
+					"12 months": "1848.00"
+				},
+				"Properties": {
+					"Number of NAT Gateways": "2"
+				}
+			},
+			{
+				"Service Name": "Transit Gateway",
+				"Description": "転送量1TB/月、アタッチメント数：1",
+				"Region": "Asia Pacific (Tokyo)",
+				"Service Cost": {
+					"monthly": "71.58",
+					"upfront": "0.00",
+					"12 months": "858.96"
+				},
+				"Properties": {
+					"Number of Transit Gateway attachments": "1"
+				}
+			},
+			{
+				"Service Name": "Amazon FSx for Windows File Server",
+				"Description": "500GB",
+				"Region": "Asia Pacific (Tokyo)",
+				"Service Cost": {
+					"monthly": "204.40",
+					"upfront": "0.00",
+					"12 months": "2452.80"
+				},
+				"Properties": {
+					"Provisioned SSD IOPS": "Automatic",
+					"Desired aggregate throughput": "0 MBps",
+					"Desired storage capacity": "500 GB",
+					"Backup storage": "500 GB"
+				}
+			},
+			{
+				"Service Name": "Amazon Simple Email Service (SES)",
+				"Description": "32KBメールを月間200万件",
+				"Region": "Asia Pacific (Tokyo)",
+				"Service Cost": {
+					"monthly": "249.85",
+					"upfront": "0.00",
+					"12 months": "2998.20"
+				},
+				"Properties": {
+					"Email messages sent from email client": "per month"
+				}
+			},
+			{
+				"Service Name": "Amazon EC2 ",
+				"Description": "m7i.large、オンデマンド（DC・DNSサーバ）",
+				"Region": "Asia Pacific (Tokyo)",
+				"Service Cost": {
+					"monthly": "181.41",
+					"upfront": "0.00",
+					"12 months": "2176.92"
+				},
+				"Properties": {
+					"Tenancy": "Shared Instances",
+					"Operating system": "Windows Server",
+					"Workload": "Consistent, Number of instances: 1",
+					"Advance EC2 instance": "m7i.large",
+					"Pricing strategy": "On-Demand Utilization: 100 %Utilized/Month",
+					"Enable monitoring": "disabled",
+					"EBS Storage amount": "200 GB",
+					"DT Inbound: Not selected": "0 TB per month",
+					"DT Outbound: Not selected": "0 TB per month",
+					"DT Intra-Region:": "0 TB per month"
+				}
+			},
+			{
+				"Service Name": "Amazon EC2 ",
+				"Description": "m7i.large、オンデマンド（ジョブ管理サーバ）",
+				"Region": "Asia Pacific (Tokyo)",
+				"Service Cost": {
+					"monthly": "200.61",
+					"upfront": "0.00",
+					"12 months": "2407.32"
+				},
+				"Properties": {
+					"Tenancy": "Shared Instances",
+					"Operating system": "Windows Server",
+					"Workload": "Consistent, Number of instances: 1",
+					"Advance EC2 instance": "m7i.large",
+					"Pricing strategy": "On-Demand Utilization: 100 %Utilized/Month",
+					"Enable monitoring": "disabled",
+					"EBS Storage amount": "400 GB",
+					"DT Inbound: Not selected": "0 TB per month",
+					"DT Outbound: Not selected": "0 TB per month",
+					"DT Intra-Region:": "0 TB per month"
+				}
+			},
+			{
+				"Service Name": "Amazon EC2 ",
+				"Description": "m7i.large、オンデマンド（作業用サーバ）",
+				"Region": "Asia Pacific (Tokyo)",
+				"Service Cost": {
+					"monthly": "181.41",
+					"upfront": "0.00",
+					"12 months": "2176.92"
+				},
+				"Properties": {
+					"Tenancy": "Shared Instances",
+					"Operating system": "Windows Server",
+					"Workload": "Consistent, Number of instances: 1",
+					"Advance EC2 instance": "m7i.large",
+					"Pricing strategy": "On-Demand Utilization: 100 %Utilized/Month",
+					"Enable monitoring": "disabled",
+					"EBS Storage amount": "200 GB",
+					"DT Inbound: Not selected": "0 TB per month",
+					"DT Outbound: Not selected": "0 TB per month",
+					"DT Intra-Region:": "0 TB per month"
+				}
+			},
+			{
+				"Service Name": "Amazon RDS for SQL server",
+				"Description": "RDS(フロントDB) multi-AZ",
+				"Region": "Asia Pacific (Tokyo)",
+				"Service Cost": {
+					"monthly": "5881.79",
+					"upfront": "0.00",
+					"12 months": "70581.48"
+				},
+				"Properties": {
+					"Storage amount": "16 TB",
+					"Nodes": "1",
+					"Instance type": "db.m6i.2xlarge",
+					"Utilization (On-Demand only)": "100 %Utilized/Month",
+					"Deployment option": "Single-AZ",
+					"License": "License included",
+					"Database edition": "Enterprise",
+					"Pricing strategy": "OnDemand",
+					"Storage for each RDS instance": "General Purpose SSD (gp2)"
+				}
+			},
+			{
+				"Service Name": "Amazon RDS for SQL server",
+				"Description": "RDS(フロントDB)ReadReplica",
+				"Region": "Asia Pacific (Tokyo)",
+				"Service Cost": {
+					"monthly": "5881.79",
+					"upfront": "0.00",
+					"12 months": "70581.48"
+				},
+				"Properties": {
+					"Storage amount": "16 TB",
+					"Nodes": "1",
+					"Instance type": "db.m6i.2xlarge",
+					"Utilization (On-Demand only)": "100 %Utilized/Month",
+					"Deployment option": "Single-AZ",
+					"License": "License included",
+					"Database edition": "Enterprise",
+					"Pricing strategy": "OnDemand",
+					"Storage for each RDS instance": "General Purpose SSD (gp2)"
+				}
+			},
+			{
+				"Service Name": "Amazon RDS for SQL server",
+				"Description": "RDS(バックエンドDB)",
+				"Region": "Asia Pacific (Tokyo)",
+				"Service Cost": {
+					"monthly": "4186.05",
+					"upfront": "0.00",
+					"12 months": "50232.60"
+				},
+				"Properties": {
+					"Storage amount": "4 TB",
+					"Nodes": "1",
+					"Instance type": "db.m6i.2xlarge",
+					"Utilization (On-Demand only)": "100 %Utilized/Month",
+					"Deployment option": "Single-AZ",
+					"License": "License included",
+					"Database edition": "Enterprise",
+					"Pricing strategy": "OnDemand",
+					"Storage for each RDS instance": "General Purpose SSD (gp2)"
+				}
+			},
+			{
+				"Service Name": "Amazon EC2 ",
+				"Description": "m7i.large、オンデマンド（バッチサーバ）",
+				"Region": "Asia Pacific (Tokyo)",
+				"Service Cost": {
+					"monthly": "260.51",
+					"upfront": "0.00",
+					"12 months": "3126.12"
+				},
+				"Properties": {
+					"Tenancy": "Shared Instances",
+					"Operating system": "Windows Server",
+					"Workload": "Consistent, Number of instances: 1",
+					"Advance EC2 instance": "m7i.large",
+					"Pricing strategy": "On-Demand Utilization: 100 %Utilized/Month",
+					"Enable monitoring": "disabled",
+					"EBS Storage amount": "1024 GB",
+					"DT Inbound: Not selected": "0 TB per month",
+					"DT Outbound: Not selected": "0 TB per month",
+					"DT Intra-Region:": "0 TB per month"
+				}
+			},
+			{
+				"Service Name": "AWS Fargate",
+				"Description": "インターネットGWサーバ",
+				"Region": "Asia Pacific (Tokyo)",
+				"Service Cost": {
+					"monthly": "189.21",
+					"upfront": "0.00",
+					"12 months": "2270.52"
+				},
+				"Properties": {
+					"Operating system": "Windows",
+					"CPU Architecture": "x86",
+					"Average duration": "1 days",
+					"Number of tasks or pods": "1 per day",
+					"Amount of memory allocated": "8 GB"
+				}
+			},
+			{
+				"Service Name": "AWS Fargate",
+				"Description": "APIサーバ",
+				"Region": "Asia Pacific (Tokyo)",
+				"Service Cost": {
+					"monthly": "945.92",
+					"upfront": "0.00",
+					"12 months": "11351.04"
+				},
+				"Properties": {
+					"Operating system": "Windows",
+					"CPU Architecture": "x86",
+					"Average duration": "1 days",
+					"Number of tasks or pods": "5 per day",
+					"Amount of memory allocated": "8 GB"
+				}
+			},
+			{
+				"Service Name": "AWS Fargate",
+				"Description": "後続処理サーバ",
+				"Region": "Asia Pacific (Tokyo)",
+				"Service Cost": {
+					"monthly": "189.21",
+					"upfront": "0.00",
+					"12 months": "2270.52"
+				},
+				"Properties": {
+					"Operating system": "Windows",
+					"CPU Architecture": "x86",
+					"Average duration": "1 days",
+					"Number of tasks or pods": "1 per day",
+					"Amount of memory allocated": "8 GB"
+				}
+			},
+			{
+				"Service Name": "AWS Fargate",
+				"Description": "後方Webサーバ",
+				"Region": "Asia Pacific (Tokyo)",
+				"Service Cost": {
+					"monthly": "189.21",
+					"upfront": "0.00",
+					"12 months": "2270.52"
+				},
+				"Properties": {
+					"Operating system": "Windows",
+					"CPU Architecture": "x86",
+					"Average duration": "1 days",
+					"Number of tasks or pods": "1 per day",
+					"Amount of memory allocated": "8 GB"
+				}
+			},
+			{
+				"Service Name": "AWS Fargate",
+				"Description": "FN連携サーバ",
+				"Region": "Asia Pacific (Tokyo)",
+				"Service Cost": {
+					"monthly": "189.21",
+					"upfront": "0.00",
+					"12 months": "2270.52"
+				},
+				"Properties": {
+					"Operating system": "Windows",
+					"CPU Architecture": "x86",
+					"Average duration": "1 days",
+					"Number of tasks or pods": "1 per day",
+					"Amount of memory allocated": "8 GB"
+				}
+			},
+			{
+				"Service Name": "Amazon FSx for Windows File Server",
+				"Description": "500GB",
+				"Region": "Asia Pacific (Tokyo)",
+				"Service Cost": {
+					"monthly": "204.40",
+					"upfront": "0.00",
+					"12 months": "2452.80"
+				},
+				"Properties": {
+					"Provisioned SSD IOPS": "Automatic",
+					"Desired aggregate throughput": "0 MBps",
+					"Desired storage capacity": "500 GB",
+					"Backup storage": "500 GB"
+				}
+			}
+		]
+	}
+}

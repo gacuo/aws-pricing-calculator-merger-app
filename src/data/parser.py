@@ -1,110 +1,122 @@
 """
-AWS Pricing Calculator データパーサーモジュール
+AWS Pricing Calculator データ解析モジュール
 
-このモジュールは、AWS Pricing Calculatorの見積もりデータを解析し、
-構造化されたデータとして提供します。
+AWS Pricing Calculatorの見積もりURLやJSONデータを解析します。
 """
 
+import re
 import json
-import logging
 import requests
-from urllib.parse import urlparse, parse_qs
+from typing import Dict, List, Any, Union, Optional
 
-logger = logging.getLogger(__name__)
 
 class EstimateParser:
-    """AWS Pricing Calculator 見積もりデータパーサー"""
+    """AWS Pricing Calculator見積もりデータの解析を行うクラス"""
     
     def __init__(self):
-        self.session = requests.Session()
-        self.session.headers.update({
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
-        })
-    
-    def validate_calculator_url(self, url):
-        """URLがAWS Pricing Calculatorのエクスポート形式か検証する"""
-        if not url:
-            return False
+        """初期化"""
+        # AWS Pricing Calculator URLの正規表現パターン
+        self.calculator_url_pattern = re.compile(
+            r"https://calculator\.aws/#/estimate\?id=[a-zA-Z0-9]+"
+        )
+        
+    def validate_calculator_url(self, url: str) -> bool:
+        """
+        AWS Pricing CalculatorのURLが有効かどうかを検証します
+        
+        Args:
+            url: 検証するURL
             
-        pattern = r'^https://calculator\.aws/#/estimate\?id=[a-f0-9]+$'
-        import re
-        return bool(re.match(pattern, url))
+        Returns:
+            bool: URLが有効な形式の場合はTrue、そうでない場合はFalse
+        """
+        return bool(self.calculator_url_pattern.match(url))
     
-    def extract_id_from_url(self, url):
-        """URLから見積もりIDを抽出する"""
-        parsed_url = urlparse(url)
+    def parse_estimate_url(self, url: str) -> Dict[str, Any]:
+        """
+        AWS Pricing Calculator見積もりURLからデータを取得して構造化します
         
-        # fragmentを解析（#/estimate?id=xxx の部分）
-        fragment = parsed_url.fragment
-        if not fragment:
-            return None
+        Args:
+            url: AWS Pricing Calculator見積もりURL
+            
+        Returns:
+            Dict: 構造化された見積もりデータ
+            
+        Raises:
+            ValueError: URLが無効な場合
+            ConnectionError: データの取得に失敗した場合
+        """
+        # URLを検証
+        if not self.validate_calculator_url(url):
+            raise ValueError(f"無効なAWS Pricing Calculator URL: {url}")
         
-        # fragment内のクエリパラメータを解析
-        query_part = fragment.split('?', 1)[1] if '?' in fragment else ''
-        query_params = parse_qs(query_part)
+        # URLからIDを抽出
+        estimate_id = url.split("id=")[1]
         
-        if 'id' in query_params and query_params['id']:
-            return query_params['id'][0]
-        return None
-    
-    def parse_estimate_url(self, url):
-        """見積もりURLからデータを解析する"""
+        # 見積もりデータを取得
+        # 注: 実際のAWS Pricing CalculatorのAPIは公開されていないため、
+        # ここではサンプルデータを読み込む実装としています
         try:
-            if not self.validate_calculator_url(url):
-                logger.error(f"無効なAWS Pricing Calculator URL: {url}")
-                raise ValueError(f"無効なAWS Pricing Calculator URL: {url}")
-                
-            estimate_id = self.extract_id_from_url(url)
-            if not estimate_id:
-                logger.error(f"URLから見積もりIDを抽出できませんでした: {url}")
-                raise ValueError(f"URLから見積もりIDを抽出できませんでした: {url}")
-                
-            # 実際の実装では、この部分でAWSから直接JSONデータを取得する必要があります
-            # 現在のところ、JSONはエクスポート機能を使って手動で取得する必要があるようです
-            
-            # 開発段階では、サンプルJSONデータを使用
-            with open('json_samples/My-Estimate.json', 'r', encoding='utf-8') as file:
+            # サンプル実装: 本来はAPIからデータを取得
+            # 実際の実装では、AWS Pricing CalculatorのAPIを使用することになります
+            with open("json_samples/sample1.json", "r", encoding="utf-8") as file:
                 raw_data = json.load(file)
             
-            # データの検証と構造化
+            # データを構造化
             return self._structure_estimate_data(raw_data)
             
         except Exception as e:
-            logger.error(f"見積もりURLの解析に失敗しました: {url}, エラー: {str(e)}")
-            raise
+            raise ConnectionError(f"見積もりデータの取得に失敗しました: {str(e)}")
     
-    def _structure_estimate_data(self, raw_data):
-        """取得した生データを構造化する"""
+    def _structure_estimate_data(self, raw_data: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        生のJSONデータから必要な情報を抽出して構造化します
         
-        # メタデータから共有URLを取得
-        share_url = raw_data.get("Metadata", {}).get("Share Url", "")
+        Args:
+            raw_data: AWS Pricing Calculatorから取得した生のJSONデータ
+            
+        Returns:
+            Dict: 構造化された見積もりデータ
+        """
+        # 見積もり名
+        name = raw_data.get("name", "Untitled Estimate")
         
-        structured_data = {
-            "name": raw_data.get("Name", "無名の見積もり"),
-            "share_url": share_url,
-            "estimate_id": self.extract_id_from_url(share_url) if share_url else "",
-            "total_cost": {
-                "monthly": float(raw_data.get("Total Cost", {}).get("monthly", "0.0")),
-                "upfront": float(raw_data.get("Total Cost", {}).get("upfront", "0.0")),
-                "12_months": float(raw_data.get("Total Cost", {}).get("12 months", "0.0")),
-            },
-            "services": []
+        # 合計コスト
+        total_cost = {
+            "upfront": raw_data.get("totalUpfront", "0.00"),
+            "monthly": raw_data.get("totalMonthly", "0.00"),
+            "12_months": raw_data.get("totalAnnual", "0.00")
         }
         
-        # サービスデータの構造化
-        services = raw_data.get("Groups", {}).get("Services", [])
-        for service in services:
-            structured_service = {
-                "name": service.get("Service Name", ""),
-                "description": service.get("Description", "-"),
-                "region": service.get("Region", ""),
-                "cost": {
-                    "monthly": float(service.get("Service Cost", {}).get("monthly", "0.0")),
-                    "upfront": float(service.get("Service Cost", {}).get("upfront", "0.0")),
-                    "12_months": float(service.get("Service Cost", {}).get("12 months", "0.0")),
-                },
-                "properties": service.get("Properties", {})
-            }
-            structured_data["services"].append(structured_service)
+        # メタデータ
+        metadata = {
+            "currency": raw_data.get("currency", "USD"),
+            "created_on": raw_data.get("created", ""),
+            "region": raw_data.get("region", ""),
+            "share_url": raw_data.get("shareUrl", "")
+        }
         
-        return structured_data
+        # サービス
+        services = []
+        groups = raw_data.get("groups", {})
+        services_list = groups.get("services", [])
+        
+        for service in services_list:
+            service_data = {
+                "service_name": service.get("name", ""),
+                "region": service.get("region", ""),
+                "upfront_cost": service.get("upfrontCost", "0.00"),
+                "monthly_cost": service.get("monthlyCost", "0.00"),
+                "yearly_cost": service.get("yearlyCost", "0.00"),
+                "description": service.get("description", ""),
+                "config": service.get("config", {})
+            }
+            services.append(service_data)
+        
+        # 構造化されたデータを返す
+        return {
+            "name": name,
+            "total_cost": total_cost,
+            "metadata": metadata,
+            "services": services
+        }

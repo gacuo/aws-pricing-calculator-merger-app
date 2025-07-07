@@ -1,0 +1,43 @@
+# Gitリポジトリ
+.git
+.gitignore
+
+# 環境ファイル
+.env
+.env.*
+
+# キャッシュファイル
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.pytest_cache/
+.coverage
+htmlcov/
+
+# ローカル開発用ファイル
+venv/
+.venv/
+env/
+.env/
+.idea/
+.vscode/
+*.swp
+*~
+
+# テスト用データ
+tests/
+json_samples/
+
+# ドキュメント
+docs/
+README.md
+LICENSE
+
+# AWS CDK関連
+cdk.out/
+node_modules/
+
+# その他
+*.log
+.DS_Store

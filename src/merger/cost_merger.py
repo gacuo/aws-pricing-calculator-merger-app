@@ -1,112 +1,144 @@
 """
-見積もり合算モジュール
+AWS Pricing Calculator コスト合算モジュール
 
-このモジュールは複数の見積もりデータを合算し、新しい見積もりデータを生成します。
+複数のAWS Pricing Calculator見積もりデータを合算します。
 """
 
-import logging
-from collections import defaultdict
+from typing import Dict, List, Any, Union, Optional
 
-logger = logging.getLogger(__name__)
 
 class EstimateMerger:
-    """見積もり合算クラス"""
+    """AWS Pricing Calculator見積もりデータの合算を行うクラス"""
     
-    def __init__(self):
-        pass
-    
-    def merge_estimates(self, estimate_data_list):
-        """複数の見積もりデータを合算する"""
+    def merge_estimates(self, estimate_data_list: List[Dict[str, Any]]) -> Dict[str, Any]:
+        """
+        複数の見積もりデータを合算します
+        
+        Args:
+            estimate_data_list: 合算する見積もりデータのリスト
+            
+        Returns:
+            Dict: 合算された見積もりデータ
+            
+        Raises:
+            ValueError: 見積もりデータが無効な場合
+        """
         if not estimate_data_list:
-            logger.warning("合算する見積もりデータがありません")
-            return None
+            raise ValueError("合算する見積もりデータがありません")
         
         if len(estimate_data_list) == 1:
-            logger.info("単一の見積もりのみが提供されたため、そのまま返します")
             return estimate_data_list[0]
         
-        try:
-            # 合算された見積もりの基本構造を作成
-            merged_estimate = {
-                "name": "合算された見積もり",
-                "share_url": "",  # 新しいURLは後で生成される
-                "estimate_id": "",  # 新しいIDは後で生成される
-                "total_cost": {
-                    "monthly": 0.0,
-                    "upfront": 0.0,
-                    "12_months": 0.0
-                },
-                "services": []
-            }
+        # 合算結果の初期値を作成
+        merged_estimate = {
+            "name": "Merged Estimate",
+            "total_cost": {
+                "upfront": "0.00",
+                "monthly": "0.00",
+                "12_months": "0.00"
+            },
+            "metadata": {
+                "currency": "USD",
+                "created_on": "",
+                "region": "",
+                "share_url": ""
+            },
+            "services": []
+        }
+        
+        # メタデータを設定
+        # 最新の見積もりのメタデータを使用
+        merged_estimate["metadata"] = estimate_data_list[0]["metadata"]
+        
+        # サービスのグループ化と合算
+        all_services = []
+        for estimate_data in estimate_data_list:
+            all_services.extend(estimate_data.get("services", []))
+        
+        # サービス名とリージョンでグループ化
+        service_groups = {}
+        for service in all_services:
+            key = (service["service_name"], service["region"])
+            if key not in service_groups:
+                service_groups[key] = []
+            service_groups[key].append(service)
+        
+        # 各サービスグループの合算
+        for key, services in service_groups.items():
+            merged_service = self._merge_services(services)
+            merged_estimate["services"].append(merged_service)
+        
+        # 合計コストの計算
+        upfront_total = sum(float(service["upfront_cost"].replace(",", "")) 
+                         for service in merged_estimate["services"])
+        monthly_total = sum(float(service["monthly_cost"].replace(",", "")) 
+                          for service in merged_estimate["services"])
+        yearly_total = monthly_total * 12 + upfront_total
+        
+        merged_estimate["total_cost"]["upfront"] = f"{upfront_total:,.2f}"
+        merged_estimate["total_cost"]["monthly"] = f"{monthly_total:,.2f}"
+        merged_estimate["total_cost"]["12_months"] = f"{yearly_total:,.2f}"
+        
+        # 見積もり名の設定
+        estimate_names = [data["name"] for data in estimate_data_list if "name" in data]
+        if estimate_names:
+            merged_estimate["name"] = f"Merged: {' + '.join(estimate_names)}"
+        
+        return merged_estimate
+    
+    def _merge_services(self, services: List[Dict[str, Any]]) -> Dict[str, Any]:
+        """
+        同一サービスの複数の見積もりデータを合算します
+        
+        Args:
+            services: 合算するサービスのリスト（同一サービス名・リージョン）
             
-            # サービスを名前とリージョンでグループ化するための辞書
-            service_groups = defaultdict(list)
+        Returns:
+            Dict: 合算されたサービスデータ
+        """
+        if not services:
+            return {}
+        
+        if len(services) == 1:
+            return services[0]
+        
+        # 最初のサービスをベースにする
+        base_service = services[0]
+        merged_service = base_service.copy()
+        
+        # コストの合算
+        upfront_cost = sum(float(service["upfront_cost"].replace(",", "")) for service in services)
+        monthly_cost = sum(float(service["monthly_cost"].replace(",", "")) for service in services)
+        yearly_cost = sum(float(service["yearly_cost"].replace(",", "")) if service["yearly_cost"] else 0 for service in services)
+        
+        merged_service["upfront_cost"] = f"{upfront_cost:,.2f}"
+        merged_service["monthly_cost"] = f"{monthly_cost:,.2f}"
+        merged_service["yearly_cost"] = f"{yearly_cost:,.2f}"
+        
+        # 説明の統合
+        descriptions = list(set(service["description"] for service in services if service["description"]))
+        merged_service["description"] = ", ".join(descriptions) if descriptions else ""
+        
+        # 設定の統合
+        # 各サービスの設定キーを統合
+        config_keys = set()
+        for service in services:
+            if "config" in service and service["config"]:
+                config_keys.update(service["config"].keys())
+        
+        merged_config = {}
+        for key in config_keys:
+            # 各サービスから同じキーの値を取得
+            values = [service["config"].get(key) for service in services 
+                     if "config" in service and service["config"] and key in service["config"]]
             
-            # すべての見積もりからサービスを収集
-            for estimate in estimate_data_list:
-                # 合計コストを加算
-                merged_estimate["total_cost"]["monthly"] += estimate["total_cost"]["monthly"]
-                merged_estimate["total_cost"]["upfront"] += estimate["total_cost"]["upfront"]
-                merged_estimate["total_cost"]["12_months"] += estimate["total_cost"]["12_months"]
-                
-                # サービスをグループ化
-                for service in estimate.get("services", []):
-                    # 名前とリージョンの組み合わせでグループ化
-                    key = (service["name"], service["region"])
-                    service_groups[key].append(service)
-            
-            # 同じサービス（名前とリージョンが同じ）を合算
-            for (name, region), services in service_groups.items():
-                # プロパティを統合（同一プロパティの場合は最初のものを使用、異なる場合は連結）
-                merged_properties = {}
-                all_properties_same = True
-                first_service_props = services[0]["properties"]
-                
-                # すべてのサービスで同じプロパティを持っているか確認
-                for service in services[1:]:
-                    if service["properties"] != first_service_props:
-                        all_properties_same = False
-                        break
-                
-                # プロパティの統合方法を決定
-                if all_properties_same:
-                    merged_properties = first_service_props
-                else:
-                    # 異なる場合は、各プロパティを連結してリスト化
-                    all_props = defaultdict(list)
-                    for service in services:
-                        for prop_key, prop_value in service["properties"].items():
-                            if prop_value not in all_props[prop_key]:
-                                all_props[prop_key].append(prop_value)
-                    
-                    # リストをカンマ区切りの文字列に変換
-                    for prop_key, prop_values in all_props.items():
-                        if len(prop_values) == 1:
-                            merged_properties[prop_key] = prop_values[0]
-                        else:
-                            merged_properties[prop_key] = ", ".join([str(v) for v in prop_values])
-                
-                # 説明の統合
-                descriptions = [s["description"] for s in services if s["description"] and s["description"] != "-"]
-                merged_description = ", ".join(descriptions) if descriptions else "-"
-                
-                # コストの合算
-                merged_service = {
-                    "name": name,
-                    "description": merged_description,
-                    "region": region,
-                    "cost": {
-                        "monthly": sum(s["cost"]["monthly"] for s in services),
-                        "upfront": sum(s["cost"]["upfront"] for s in services),
-                        "12_months": sum(s["cost"]["12_months"] for s in services)
-                    },
-                    "properties": merged_properties
-                }
-                
-                merged_estimate["services"].append(merged_service)
-            
-            return merged_estimate
-            
-        except Exception as e:
-            logger.error(f"見積もりの合算に失敗しました: {str(e)}")
-            raise
+            # 値が1つしかない場合はそのまま使用
+            if len(values) == 1:
+                merged_config[key] = values[0]
+            else:
+                # 複数の値がある場合は配列として保存
+                merged_config[key] = values
+        
+        merged_service["config"] = merged_config
+        
+        return merged_service
