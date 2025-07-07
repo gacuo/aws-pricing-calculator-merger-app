@@ -5,25 +5,22 @@ AWS Pricing Calculator APIモジュール
 見積もりURLからデータを取得し、新しい見積もりURLを生成する機能を提供します。
 """
 
-import requests
 import json
+import logging
 import re
+import uuid
 from urllib.parse import urlparse, parse_qs
-from bs4 import BeautifulSoup
 
+logger = logging.getLogger(__name__)
 
 class CalculatorAPI:
     """AWS Pricing Calculator API操作クラス"""
     
     BASE_URL = "https://calculator.aws"
-    ESTIMATE_PATH = "/#/estimate"
+    ESTIMATE_PATH = "#/estimate"
     
     def __init__(self):
-        self.session = requests.Session()
-        # 必要に応じてユーザーエージェントやヘッダーを設定
-        self.session.headers.update({
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
-        })
+        pass
     
     def validate_calculator_url(self, url):
         """URLがAWS Pricing Calculatorのエクスポート形式か検証する"""
@@ -36,79 +33,112 @@ class CalculatorAPI:
     def extract_id_from_url(self, url):
         """URLから見積もりIDを抽出する"""
         parsed_url = urlparse(url)
-        query_params = parse_qs(parsed_url.fragment.split('?')[1] if '?' in parsed_url.fragment else '')
+        
+        # fragmentを解析（#/estimate?id=xxx の部分）
+        fragment = parsed_url.fragment
+        if not fragment:
+            return None
+        
+        # fragment内のクエリパラメータを解析
+        query_part = fragment.split('?', 1)[1] if '?' in fragment else ''
+        query_params = parse_qs(query_part)
         
         if 'id' in query_params and query_params['id']:
             return query_params['id'][0]
         return None
     
-    def get_estimate_data(self, url):
-        """見積もりURLからデータを取得する"""
-        if not self.validate_calculator_url(url):
-            raise ValueError(f"無効なAWS Pricing Calculator URL: {url}")
-        
-        # この部分はAWSのAPIがどのように動作するかによって異なります
-        # 実際の実装では、AWS Pricing Calculatorから見積もりデータをどのように取得するかを
-        # 詳細に調査する必要があります。
-        # ここでは概念実装として、URLからデータを取得するアプローチを示します。
-        
-        try:
-            # 見積もりIDの取得
-            estimate_id = self.extract_id_from_url(url)
-            if not estimate_id:
-                raise ValueError(f"URLから見積もりIDを抽出できませんでした: {url}")
-            
-            # 実際の実装では、AWSのAPIエンドポイントにリクエストを送信してデータを取得
-            # この部分はAWSの実際のAPIに合わせて調整が必要
-            
-            # 開発段階ではモックデータを返すことも考えられます
-            # 実際の実装では、この部分をAWS Pricing Calculatorから実データを取得する処理に置き換えます
-            mock_data = {
-                "estimate_id": estimate_id,
-                "name": f"見積もり {estimate_id[:8]}",
-                "total_cost": {
-                    "monthly": "100.00",
-                    "upfront": "0.00",
-                    "12_months": "1200.00"
-                },
-                "services": [
-                    {
-                        "name": "Amazon EC2",
-                        "description": "テスト用EC2インスタンス",
-                        "region": "ap-northeast-1",
-                        "cost": {
-                            "monthly": "50.00",
-                            "upfront": "0.00",
-                            "12_months": "600.00"
-                        }
-                    },
-                    {
-                        "name": "Amazon S3",
-                        "description": "ストレージ",
-                        "region": "ap-northeast-1",
-                        "cost": {
-                            "monthly": "50.00",
-                            "upfront": "0.00",
-                            "12_months": "600.00"
-                        }
-                    }
-                ]
-            }
-            
-            return mock_data
-            
-        except Exception as e:
-            raise Exception(f"見積もりデータの取得に失敗しました: {str(e)}")
-    
     def create_merged_estimate(self, merged_data):
         """合算されたデータから新しい見積もりURLを生成する"""
-        # 実際の実装では、AWS Pricing CalculatorのAPIを使用して
-        # 新しい見積もりを作成し、そのURLを取得します
         
-        # この部分はAWSのAPIの仕様に応じて実装する必要があります
-        # ここでは概念実装としてダミーのURLを生成します
+        # 実際のAWS Pricing CalculatorのAPI実装
+        # この部分は実際のAWS APIの仕様に合わせて更新する必要があります
         
-        # 開発段階ではモックURLを返すことも考えられます
-        mock_url = f"https://calculator.aws/#/estimate?id=merged{hash(json.dumps(merged_data))}"
+        # 現状では、AWSの非公開APIを直接利用することは困難なため、
+        # AWS Pricing Calculatorで手動で新しい見積もりを作成するための手順を提示する形になります
         
-        return mock_url
+        # テスト用に生成されたIDを使用してURLを作成
+        # 注: これはダミーのURLであり、実際には機能しません
+        generated_id = uuid.uuid4().hex[:40]
+        mock_url = f"{self.BASE_URL}/{self.ESTIMATE_PATH}?id={generated_id}"
+        
+        # データを使用して構築するための手順を返す
+        instructions = self._create_manual_instructions(merged_data)
+        
+        # JSONデータを文字列化して返す（後でクライアントが使用するため）
+        json_data = self._convert_to_calculator_format(merged_data)
+        
+        return {
+            "url": mock_url,
+            "instructions": instructions,
+            "json_data": json.dumps(json_data, indent=4)
+        }
+    
+    def _create_manual_instructions(self, merged_data):
+        """合算データから手動で見積もりを構築するための手順を生成する"""
+        services_count = len(merged_data["services"])
+        total_monthly = merged_data["total_cost"]["monthly"]
+        total_annual = merged_data["total_cost"]["12_months"]
+        
+        instructions = [
+            "新しいAWS Pricing Calculator見積もりを作成するには、以下の手順に従ってください：",
+            "",
+            "1. AWS Pricing Calculator (https://calculator.aws/) にアクセスする",
+            "2. 「Create estimate」をクリックする",
+            f"3. 以下の{services_count}つのサービスを追加する："
+        ]
+        
+        for idx, service in enumerate(merged_data["services"], 1):
+            instructions.append(f"   {idx}. {service['name']} ({service['region']}) - 月額: ${service['cost']['monthly']:.2f}")
+            
+            # 各サービスのプロパティを追加
+            for prop_key, prop_value in service["properties"].items():
+                instructions.append(f"      - {prop_key}: {prop_value}")
+        
+        instructions.extend([
+            "",
+            f"合算後の月額コスト: ${total_monthly:.2f}",
+            f"合算後の年間コスト: ${total_annual:.2f}",
+            "",
+            "各サービスの詳細な設定については、エクスポートされたJSONデータを参照してください。"
+        ])
+        
+        return "\n".join(instructions)
+    
+    def _convert_to_calculator_format(self, merged_data):
+        """内部データ形式をAWS Pricing Calculator形式に変換する"""
+        
+        # AWS Pricing Calculatorが期待するJSON形式に変換
+        calculator_data = {
+            "Name": merged_data["name"],
+            "Total Cost": {
+                "monthly": f"{merged_data['total_cost']['monthly']:.2f}",
+                "upfront": f"{merged_data['total_cost']['upfront']:.2f}",
+                "12 months": f"{merged_data['total_cost']['12_months']:.2f}"
+            },
+            "Metadata": {
+                "Currency": "USD",
+                "Locale": "en_US",
+                "Created On": "auto-generated",
+                "Legal Disclaimer": "AWS Pricing Calculator provides only an estimate of your AWS fees and doesn't include any taxes that might apply. Your actual fees depend on a variety of factors, including your actual usage of AWS services."
+            },
+            "Groups": {
+                "Services": []
+            }
+        }
+        
+        # サービスデータを変換
+        for service in merged_data["services"]:
+            calculator_service = {
+                "Service Name": service["name"],
+                "Description": service["description"] if service["description"] != "-" else "",
+                "Region": service["region"],
+                "Service Cost": {
+                    "monthly": f"{service['cost']['monthly']:.2f}",
+                    "upfront": f"{service['cost']['upfront']:.2f}",
+                    "12 months": f"{service['cost']['12_months']:.2f}"
+                },
+                "Properties": service["properties"]
+            }
+            calculator_data["Groups"]["Services"].append(calculator_service)
+        
+        return calculator_data

@@ -1,0 +1,40 @@
+{
+	"Name": "My Estimate",
+	"Total Cost": {
+		"monthly": "715.56",
+		"upfront": "0.00",
+		"12 months": "8586.72"
+	},
+	"Metadata": {
+		"Currency": "USD",
+		"Locale": "en_US",
+		"Created On": "7/7/2025",
+		"Legal Disclaimer": "AWS Pricing Calculator provides only an estimate of your AWS fees and doesn't include any taxes that might apply. Your actual fees depend on a variety of factors, including your actual usage of AWS services.",
+		"Share Url": "https://calculator.aws/#/estimate?id=a44ad8d3399a5cd262db857eb9394ff4f4e246f5"
+	},
+	"Groups": {
+		"Services": [
+			{
+				"Service Name": "Amazon EC2 ",
+				"Region": "Asia Pacific (Tokyo)",
+				"Service Cost": {
+					"monthly": "715.56",
+					"upfront": "0.00",
+					"12 months": "8586.72"
+				},
+				"Properties": {
+					"Tenancy": "Shared Instances",
+					"Operating system": "Linux",
+					"Workload": "Consistent, Number of instances: 3",
+					"Advance EC2 instance": "m5.large",
+					"Pricing strategy": "On-Demand Utilization: 100 %Utilized/Month",
+					"Enable monitoring": "disabled",
+					"EBS Storage amount": "500 GB",
+					"DT Inbound: Not selected": "0 TB per month",
+					"DT Outbound: Not selected": "0 TB per month",
+					"DT Intra-Region:": "0 TB per month"
+				}
+			}
+		]
+	}
+}
