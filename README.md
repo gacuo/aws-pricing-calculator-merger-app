@@ -24,12 +24,15 @@
 git clone https://github.com/yourusername/aws-pricing-calculator-merger.git
 cd aws-pricing-calculator-merger
 
-# 仮想環境の作成（任意）
-python -m venv venv
-source venv/bin/activate  # Windowsの場合: venv\Scripts\activate
+# uv がインストールされていない場合はインストール
+curl -LsSf https://astral.sh/uv/install.sh | sh
+
+# 仮想環境の作成と依存パッケージのインストール
+uv venv  # 仮想環境を作成
+source .venv/bin/activate  # Windowsの場合: .venv\Scripts\activate
 
 # 依存パッケージのインストール
-pip install -r requirements.txt
+uv pip install -r requirements.txt
 ```
 
 ### アプリケーションの実行
