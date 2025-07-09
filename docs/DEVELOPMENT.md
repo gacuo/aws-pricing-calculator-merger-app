@@ -31,27 +31,34 @@ git clone https://github.com/gacuo/aws-pricing-calculator-merger.git
 cd aws-pricing-calculator-merger
 ```
 
-2. 仮想環境の作成と有効化
+2. uv のインストール
 
 ```bash
-python -m venv venv
-source venv/bin/activate  # Windowsの場合: venv\Scripts\activate
+# uv がインストールされていない場合はインストール
+curl -LsSf https://astral.sh/uv/install.sh | sh
 ```
 
-3. 開発用依存パッケージのインストール
+3. 仮想環境の作成と有効化
 
 ```bash
-pip install -r requirements.txt
-pip install -r requirements-dev.txt
+uv venv
+source .venv/bin/activate  # Windowsの場合: .venv\Scripts\activate
 ```
 
-4. pre-commitフックのインストール
+4. 開発用依存パッケージのインストール
+
+```bash
+uv pip install -r requirements.txt
+uv pip install -r requirements-dev.txt
+```
+
+5. pre-commitフックのインストール
 
 ```bash
 pre-commit install
 ```
 
-5. アプリケーションの実行
+6. アプリケーションの実行
 
 ```bash
 python app.py

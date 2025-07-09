@@ -1,0 +1,14 @@
+# uv設定ファイル
+
+[venv]
+# 仮想環境の作成先を.venvディレクトリに設定
+venv-path = ".venv"
+
+[python]
+# デフォルトで使用するPythonバージョン
+python-path = "python3.10"
+
+[pip]
+# インストール時のオプション
+quiet = false
+index-url = "https://pypi.org/simple"

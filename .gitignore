@@ -62,3 +62,4 @@ cdk.out/
 .cdk.staging/
 cdk.context.json
 .DS_Store
+.venv/

@@ -67,13 +67,16 @@ aws-pricing-calculator-merger/
 git clone https://github.com/gacuo/aws-pricing-calculator-merger.git
 cd aws-pricing-calculator-merger
 
+# uv がインストールされていない場合はインストール
+curl -LsSf https://astral.sh/uv/install.sh | sh
+
 # 仮想環境の作成と有効化
-python -m venv venv
-source venv/bin/activate  # Windowsの場合: venv\Scripts\activate
+uv venv
+source .venv/bin/activate  # Windowsの場合: .venv\Scripts\activate
 
 # 依存パッケージのインストール
-pip install -r requirements.txt
-pip install -r requirements-dev.txt  # 開発用パッケージ
+uv pip install -r requirements.txt
+uv pip install -r requirements-dev.txt  # 開発用パッケージ
 
 # アプリケーションの実行
 python app.py
