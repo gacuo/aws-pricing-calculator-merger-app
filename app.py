@@ -1,432 +1,274 @@
+#!/usr/bin/env python3
 """
 AWS Pricing Calculator 見積もり合算ツール
 
-このアプリケーションは複数のAWS Pricing Calculatorの見積もりURLを入力として受け取り、
-それらを合算した結果を返すウェブアプリケーションです。
+複数のAWS Pricing Calculator見積もりURLを入力として受け取り、
+それらを合算した結果を表示するウェブアプリケーション。
 """
 
 import os
+import logging
 import json
 import uuid
-from datetime import datetime
-from flask import Flask, render_template, request, jsonify, redirect, url_for, send_file
-from werkzeug.utils import secure_filename
-import logging
-from logging.config import dictConfig
-
-# 自作モジュールのインポート
-from src.api.calculator_api import CalculatorAPI
+import tempfile
+from flask import Flask, render_template, request, jsonify, send_file
+from werkzeug.exceptions import NotFound, InternalServerError
+from dotenv import load_dotenv
 from src.data.parser import EstimateParser
 from src.merger.estimate_merger import EstimateMerger
+from src.api.calculator_api import CalculatorAPI
+
+# 環境変数の読み込み
+load_dotenv()
+
+# アプリケーション設定
+app = Flask(__name__)
+app.config["SECRET_KEY"] = os.getenv("SECRET_KEY", os.urandom(24).hex())
+app.config["JSON_AS_ASCII"] = False
+app.config["MAX_CONTENT_LENGTH"] = 16 * 1024 * 1024  # 16MB
+
+# 出力ディレクトリの設定
+MERGED_ESTIMATES_DIR = os.environ.get("MERGED_ESTIMATES_DIR", "merged_estimates")
+JSON_SAMPLES_DIR = os.environ.get("JSON_SAMPLES_DIR", "json_samples")
+LOG_DIR = os.environ.get("LOG_DIR", "logs")
+
+# ディレクトリの作成
+os.makedirs(MERGED_ESTIMATES_DIR, exist_ok=True)
+os.makedirs(JSON_SAMPLES_DIR, exist_ok=True)
+os.makedirs(LOG_DIR, exist_ok=True)
 
 # ロギング設定
-dictConfig({
-    'version': 1,
-    'formatters': {
-        'default': {
-            'format': '[%(asctime)s] %(levelname)s in %(module)s: %(message)s',
-        }
-    },
-    'handlers': {
-        'wsgi': {
-            'class': 'logging.StreamHandler',
-            'stream': 'ext://flask.logging.wsgi_errors_stream',
-            'formatter': 'default'
-        },
-        'file': {
-            'class': 'logging.handlers.RotatingFileHandler',
-            'filename': 'logs/app.log',
-            'maxBytes': 10485760,  # 10MB
-            'backupCount': 10,
-            'formatter': 'default'
-        }
-    },
-    'root': {
-        'level': 'INFO',
-        'handlers': ['wsgi', 'file']
-    }
-})
-
-# Flaskアプリケーションの初期化
-app = Flask(__name__)
-app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'dev-key-for-development')
-app.config['UPLOAD_FOLDER'] = 'json_samples'
-app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024  # 16MB制限
-app.config['MERGED_ESTIMATES_FOLDER'] = 'merged_estimates'
-
-# ディレクトリがない場合は作成
-os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
-os.makedirs(app.config['MERGED_ESTIMATES_FOLDER'], exist_ok=True)
-os.makedirs('logs', exist_ok=True)
-
-# ロガーの取得
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+    handlers=[
+        logging.FileHandler(os.path.join(LOG_DIR, "app.log")),
+        logging.StreamHandler(),
+    ],
+)
 logger = logging.getLogger(__name__)
 
-# 許可されるファイル拡張子
-ALLOWED_EXTENSIONS = {'json'}
+# コンポーネント初期化
+parser = EstimateParser()
+merger = EstimateMerger()
+calculator_api = CalculatorAPI()
 
-def allowed_file(filename):
-    """アップロードされたファイルの拡張子が許可されているかチェックする"""
-    return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
 
-@app.route('/')
+@app.route("/")
 def index():
-    """トップページを表示する"""
-    return render_template('index.html')
+    """ホームページ表示"""
+    return render_template("index.html")
 
-@app.route('/merge', methods=['POST'])
+
+@app.route("/merge", methods=["POST"])
 def merge_estimates():
-    """見積もりの合算処理を行う"""
-    try:
-        # URLからの合算
-        if 'urls' in request.form:
-            urls = request.form.getlist('urls')
-            if not urls or not urls[0]:
-                return jsonify({
-                    'success': False,
-                    'error': 'URLが入力されていません。'
-                }), 400
-                
-            logger.info(f"URLからの合算処理: {len(urls)}件のURL")
-            
-            # URLからデータを抽出
-            parser = EstimateParser()
-            estimate_data_list = []
-            
-            for url in urls:
-                try:
-                    estimate_data = parser.parse_from_url(url)
-                    estimate_data_list.append(estimate_data)
-                except Exception as e:
-                    logger.error(f"URLからのデータ抽出エラー: {str(e)}", exc_info=True)
-                    return jsonify({
-                        'success': False,
-                        'error': f"無効なAWS Pricing Calculator URL: {url}"
-                    }), 400
-            
-            # データを合算
-            merger = EstimateMerger()
-            merged_data = merger.merge_estimates(estimate_data_list)
-            
-            # 結果を保存
-            merged_id = str(uuid.uuid4())
-            output_path = os.path.join(app.config['MERGED_ESTIMATES_FOLDER'], f"{merged_id}.json")
-            with open(output_path, 'w') as f:
-                json.dump(merged_data, f, indent=2)
-            
-            # AWS Calculator APIを使用してURLを生成
-            calculator_api = CalculatorAPI()
-            merged_url = calculator_api.generate_calculator_url(merged_data)
-            
-            return jsonify({
-                'success': True,
-                'message': f"{len(urls)}件の見積もりを合算しました。",
-                'merged_url': merged_url,
-                'data': {
-                    'name': merged_data.get('name', 'Merged Estimate'),
-                    'total_cost': calculator_api.calculate_total_cost(merged_data)
-                },
-                'download_url': url_for('download_estimate', estimate_id=merged_id),
-                'id': merged_id
-            })
-            
-        # ファイルアップロードからの合算
-        elif 'files' in request.files:
-            uploaded_files = request.files.getlist('files')
-            valid_files = []
-            
-            for file in uploaded_files:
-                if file and allowed_file(file.filename):
-                    filename = secure_filename(file.filename)
-                    file_path = os.path.join(app.config['UPLOAD_FOLDER'], filename)
-                    file.save(file_path)
-                    valid_files.append(file_path)
-            
-            if not valid_files:
-                return jsonify({
-                    'success': False,
-                    'error': '有効なJSONファイルがアップロードされていません。'
-                }), 400
-                
-            logger.info(f"ファイルからの合算処理: {len(valid_files)}件のファイル")
-            
-            # ファイルからデータを抽出
-            parser = EstimateParser()
-            estimate_data_list = []
-            
-            for file_path in valid_files:
-                try:
-                    with open(file_path, 'r') as f:
-                        data = json.load(f)
-                    estimate_data = parser.parse_from_json(data)
-                    estimate_data_list.append(estimate_data)
-                except Exception as e:
-                    logger.error(f"ファイルからのデータ抽出エラー: {str(e)}", exc_info=True)
-                    return jsonify({
-                        'success': False,
-                        'error': f"無効なJSON形式: {os.path.basename(file_path)}"
-                    }), 400
-            
-            # データを合算
-            merger = EstimateMerger()
-            merged_data = merger.merge_estimates(estimate_data_list)
-            
-            # 結果を保存
-            merged_id = str(uuid.uuid4())
-            output_path = os.path.join(app.config['MERGED_ESTIMATES_FOLDER'], f"{merged_id}.json")
-            with open(output_path, 'w') as f:
-                json.dump(merged_data, f, indent=2)
-            
-            # AWS Calculator APIを使用してURLを生成
-            calculator_api = CalculatorAPI()
-            merged_url = calculator_api.generate_calculator_url(merged_data)
-            
-            return jsonify({
-                'success': True,
-                'message': f"{len(valid_files)}件の見積もりを合算しました。",
-                'merged_url': merged_url,
-                'data': {
-                    'name': merged_data.get('name', 'Merged Estimate'),
-                    'total_cost': calculator_api.calculate_total_cost(merged_data)
-                },
-                'download_url': url_for('download_estimate', estimate_id=merged_id),
-                'id': merged_id
-            })
+    """
+    複数の見積もりURLを合算する
+    
+    フォームデータ:
+        urls: 見積もりURLのリスト
         
-        else:
-            return jsonify({
-                'success': False,
-                'error': 'URLまたはファイルが提供されていません。'
-            }), 400
-            
+    Returns:
+        JSON: 合算結果データ
+    """
+    try:
+        # URLリスト取得
+        urls = request.form.getlist("urls")
+        
+        if not urls:
+            return jsonify({"success": False, "error": "URLが提供されていません"}), 400
+        
+        # 各URLからデータを抽出
+        estimate_data_list = []
+        for url in urls:
+            try:
+                estimate_data = parser.parse_from_url(url)
+                estimate_data_list.append(estimate_data)
+            except ValueError as e:
+                logger.error(f"URLの解析エラー: {str(e)}")
+                return jsonify({"success": False, "error": f"URLの解析エラー: {str(e)}"}), 400
+        
+        # データを合算
+        merged_estimate = merger.merge_estimates(estimate_data_list)
+        
+        # 合算URLを生成
+        merged_url = calculator_api.generate_calculator_url(merged_estimate)
+        
+        # 総コスト計算
+        total_cost = calculator_api.calculate_total_cost(merged_estimate)
+        
+        # JSONファイル保存
+        estimate_id = str(uuid.uuid4())
+        json_path = os.path.join(MERGED_ESTIMATES_DIR, f"{estimate_id}.json")
+        
+        with open(json_path, "w", encoding="utf-8") as f:
+            json.dump(merged_estimate, f, ensure_ascii=False, indent=2)
+        
+        # レスポンス作成
+        response_data = {
+            "success": True,
+            "merged_url": merged_url,
+            "download_url": f"/download/{estimate_id}",
+            "data": {
+                "name": merged_estimate.get("name", "合算見積もり"),
+                "total_cost": total_cost,
+                "service_count": len(merged_estimate.get("services", []))
+            }
+        }
+        
+        return jsonify(response_data)
+    
     except Exception as e:
-        logger.error(f"見積もり合算中にエラーが発生: {str(e)}", exc_info=True)
+        logger.exception("見積もり合算中にエラーが発生")
         return jsonify({
-            'success': False,
-            'error': f"見積もりの合算中にエラーが発生しました: {str(e)}"
+            "success": False,
+            "error": f"処理中にエラーが発生しました: {str(e)}"
         }), 500
 
-@app.route('/download/<estimate_id>', methods=['GET'])
+
+@app.route("/download/<estimate_id>", methods=["GET"])
 def download_estimate(estimate_id):
-    """合算した見積もりデータをダウンロードする"""
+    """
+    合算された見積もりデータをダウンロードする
+    
+    Args:
+        estimate_id: 見積もりID
+        
+    Returns:
+        File: JSONファイル
+    """
     try:
-        file_path = os.path.join(app.config['MERGED_ESTIMATES_FOLDER'], f"{estimate_id}.json")
-        if not os.path.exists(file_path):
+        json_path = os.path.join(MERGED_ESTIMATES_DIR, f"{estimate_id}.json")
+        
+        if not os.path.exists(json_path):
+            logger.error(f"見積もりファイルが見つかりません: {estimate_id}")
             return jsonify({
-                'success': False,
-                'error': '指定されたIDの見積もりが見つかりません。'
+                "success": False,
+                "error": "見積もりファイルが見つかりません"
             }), 404
-            
-        timestamp = datetime.now().strftime("%Y%m%d%H%M%S")
+        
         return send_file(
-            file_path,
+            json_path,
             as_attachment=True,
-            download_name=f"aws-merged-estimate-{timestamp}.json",
-            mimetype='application/json'
+            download_name=f"aws-pricing-merged-{estimate_id[:8]}.json",
+            mimetype="application/json"
         )
-        
+    
     except Exception as e:
-        logger.error(f"ダウンロード処理中にエラーが発生: {str(e)}", exc_info=True)
+        logger.exception("ファイルダウンロード中にエラーが発生")
         return jsonify({
-            'success': False,
-            'error': f"ダウンロード中にエラーが発生しました: {str(e)}"
+            "success": False,
+            "error": f"ファイルダウンロード中にエラーが発生: {str(e)}"
         }), 500
 
-@app.route('/api/v1/merge', methods=['POST'])
-def api_merge_estimates():
-    """API: 見積もりの合算処理を行う"""
-    try:
-        data = request.json
-        if not data or 'urls' not in data or not data['urls']:
-            return jsonify({
-                'success': False,
-                'error': 'URLsが提供されていません。'
-            }), 400
-            
-        urls = data['urls']
-        logger.info(f"API: URLからの合算処理: {len(urls)}件のURL")
-        
-        # URLからデータを抽出
-        parser = EstimateParser()
-        estimate_data_list = []
-        
-        for url in urls:
-            try:
-                estimate_data = parser.parse_from_url(url)
-                estimate_data_list.append(estimate_data)
-            except Exception as e:
-                logger.error(f"API: URLからのデータ抽出エラー: {str(e)}", exc_info=True)
-                return jsonify({
-                    'success': False,
-                    'error': f"無効なAWS Pricing Calculator URL: {url}"
-                }), 400
-        
-        # データを合算
-        merger = EstimateMerger()
-        merged_data = merger.merge_estimates(estimate_data_list)
-        
-        # 結果を保存
-        merged_id = str(uuid.uuid4())
-        output_path = os.path.join(app.config['MERGED_ESTIMATES_FOLDER'], f"{merged_id}.json")
-        with open(output_path, 'w') as f:
-            json.dump(merged_data, f, indent=2)
-        
-        # AWS Calculator APIを使用してURLを生成
-        calculator_api = CalculatorAPI()
-        merged_url = calculator_api.generate_calculator_url(merged_data)
-        
-        return jsonify({
-            'success': True,
-            'message': f"{len(urls)}件の見積もりを合算しました。",
-            'merged_url': merged_url,
-            'instructions': "1. JSONファイルをダウンロードしてください\n2. AWS Pricing Calculatorにアクセス...",
-            'data': {
-                'name': merged_data.get('name', 'Merged Estimate'),
-                'total_cost': calculator_api.calculate_total_cost(merged_data)
-            },
-            'id': merged_id
-        })
-            
-    except Exception as e:
-        logger.error(f"API: 見積もり合算中にエラーが発生: {str(e)}", exc_info=True)
-        return jsonify({
-            'success': False,
-            'error': f"見積もりの合算中にエラーが発生しました: {str(e)}"
-        }), 500
 
-@app.route('/api/v1/estimate/<id>', methods=['GET'])
-def api_get_estimate(id):
-    """API: 合算された見積もりデータの詳細を取得する"""
+@app.route("/export/<format>/<estimate_id>", methods=["GET"])
+def export_estimate(format, estimate_id):
+    """
+    見積もりデータを指定された形式でエクスポート
+    
+    Args:
+        format: エクスポート形式 (csv, pdf)
+        estimate_id: 見積もりID
+        
+    Returns:
+        File: エクスポートファイル
+    """
     try:
-        file_path = os.path.join(app.config['MERGED_ESTIMATES_FOLDER'], f"{id}.json")
-        if not os.path.exists(file_path):
+        json_path = os.path.join(MERGED_ESTIMATES_DIR, f"{estimate_id}.json")
+        
+        if not os.path.exists(json_path):
+            logger.error(f"見積もりファイルが見つかりません: {estimate_id}")
             return jsonify({
-                'success': False,
-                'error': '指定されたIDの見積もりが見つかりません。'
+                "success": False,
+                "error": "見積もりファイルが見つかりません"
             }), 404
+        
+        # JSONファイル読み込み
+        with open(json_path, "r", encoding="utf-8") as f:
+            estimate_data = json.load(f)
+        
+        # 一時ディレクトリの作成
+        with tempfile.TemporaryDirectory() as temp_dir:
+            if format.lower() == "csv":
+                output_path = calculator_api.export_to_csv(estimate_data, estimate_id, temp_dir)
+                mimetype = "text/csv"
+                extension = "csv"
+            elif format.lower() == "pdf":
+                output_path = calculator_api.export_to_pdf(estimate_data, estimate_id, temp_dir)
+                mimetype = "application/pdf"
+                extension = "pdf"
+            else:
+                return jsonify({
+                    "success": False,
+                    "error": "サポートされていない形式です"
+                }), 400
             
-        with open(file_path, 'r') as f:
-            data = json.load(f)
-        
-        # AWS Calculator APIを使用して総コストを計算
-        calculator_api = CalculatorAPI()
-        total_cost = calculator_api.calculate_total_cost(data)
-        
-        # レスポンス用にデータを整形
-        created_time = datetime.fromtimestamp(os.path.getctime(file_path)).isoformat()
-        
-        return jsonify({
-            'id': id,
-            'name': data.get('name', 'Merged Estimate'),
-            'created_at': created_time,
-            'total_cost': total_cost,
-            'services': calculator_api.extract_services(data)
-        })
-            
+            return send_file(
+                output_path,
+                as_attachment=True,
+                download_name=f"aws-pricing-merged-{estimate_id[:8]}.{extension}",
+                mimetype=mimetype
+            )
+    
     except Exception as e:
-        logger.error(f"API: 見積もり取得中にエラーが発生: {str(e)}", exc_info=True)
+        logger.exception(f"エクスポート中にエラーが発生: {format}")
         return jsonify({
-            'success': False,
-            'error': f"見積もりの取得中にエラーが発生しました: {str(e)}"
+            "success": False,
+            "error": f"エクスポート中にエラーが発生: {str(e)}"
         }), 500
 
-@app.route('/api/v1/export/<format>', methods=['POST'])
-def api_export_estimate(format):
-    """API: 合算された見積もりデータをエクスポートする"""
-    if format not in ['json', 'csv', 'pdf']:
-        return jsonify({
-            'success': False,
-            'error': 'サポートされていないエクスポート形式です。'
-        }), 400
+
+@app.route("/sample/<sample_id>", methods=["GET"])
+def get_sample(sample_id):
+    """
+    サンプルデータを取得する
+    
+    Args:
+        sample_id: サンプルID
         
+    Returns:
+        File: JSONファイル
+    """
     try:
-        data = request.json
-        if not data or 'urls' not in data or not data['urls']:
+        sample_path = os.path.join(JSON_SAMPLES_DIR, f"{sample_id}.json")
+        
+        if not os.path.exists(sample_path):
+            logger.error(f"サンプルファイルが見つかりません: {sample_id}")
             return jsonify({
-                'success': False,
-                'error': 'URLsが提供されていません。'
-            }), 400
-            
-        urls = data['urls']
-        logger.info(f"API: エクスポート処理: {len(urls)}件のURL, 形式={format}")
+                "success": False,
+                "error": "サンプルファイルが見つかりません"
+            }), 404
         
-        # URLからデータを抽出
-        parser = EstimateParser()
-        estimate_data_list = []
+        with open(sample_path, "r", encoding="utf-8") as f:
+            sample_data = json.load(f)
         
-        for url in urls:
-            try:
-                estimate_data = parser.parse_from_url(url)
-                estimate_data_list.append(estimate_data)
-            except Exception as e:
-                logger.error(f"API: URLからのデータ抽出エラー: {str(e)}", exc_info=True)
-                return jsonify({
-                    'success': False,
-                    'error': f"無効なAWS Pricing Calculator URL: {url}"
-                }), 400
-        
-        # データを合算
-        merger = EstimateMerger()
-        merged_data = merger.merge_estimates(estimate_data_list)
-        
-        # 結果を保存
-        merged_id = str(uuid.uuid4())
-        timestamp = datetime.now().strftime("%Y%m%d%H%M%S")
-        
-        if format == 'json':
-            output_path = os.path.join(app.config['MERGED_ESTIMATES_FOLDER'], f"{merged_id}.json")
-            with open(output_path, 'w') as f:
-                json.dump(merged_data, f, indent=2)
-                
-            return send_file(
-                output_path,
-                as_attachment=True,
-                download_name=f"aws-merged-estimate-{timestamp}.json",
-                mimetype='application/json'
-            )
-            
-        elif format == 'csv':
-            # TODO: CSVエクスポート機能の実装
-            # 現在はサンプル実装
-            calculator_api = CalculatorAPI()
-            output_path = calculator_api.export_to_csv(merged_data, merged_id, app.config['MERGED_ESTIMATES_FOLDER'])
-            
-            return send_file(
-                output_path,
-                as_attachment=True,
-                download_name=f"aws-merged-estimate-{timestamp}.csv",
-                mimetype='text/csv'
-            )
-            
-        elif format == 'pdf':
-            # TODO: PDFエクスポート機能の実装
-            # 現在はサンプル実装
-            calculator_api = CalculatorAPI()
-            output_path = calculator_api.export_to_pdf(merged_data, merged_id, app.config['MERGED_ESTIMATES_FOLDER'])
-            
-            return send_file(
-                output_path,
-                as_attachment=True,
-                download_name=f"aws-merged-estimate-{timestamp}.pdf",
-                mimetype='application/pdf'
-            )
-            
-    except Exception as e:
-        logger.error(f"API: エクスポート中にエラーが発生: {str(e)}", exc_info=True)
         return jsonify({
-            'success': False,
-            'error': f"エクスポート中にエラーが発生しました: {str(e)}"
+            "success": True,
+            "data": sample_data
+        })
+    
+    except Exception as e:
+        logger.exception("サンプルデータ取得中にエラーが発生")
+        return jsonify({
+            "success": False,
+            "error": f"サンプルデータ取得中にエラーが発生: {str(e)}"
         }), 500
+
 
 @app.errorhandler(404)
 def page_not_found(e):
     """404エラーハンドラ"""
-    return render_template('404.html'), 404
+    logger.info("404 Not Found: %s", request.path)
+    return render_template("404.html"), 404
+
 
 @app.errorhandler(500)
-def internal_server_error(e):
+def server_error(e):
     """500エラーハンドラ"""
-    return render_template('500.html'), 500
+    logger.error("500 Server Error: %s", str(e))
+    return render_template("500.html"), 500
 
-if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=int(os.environ.get('PORT', 5000)), debug=os.environ.get('FLASK_DEBUG', 'False').lower() == 'true')
+
+if __name__ == "__main__":
+    app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 5000)), debug=os.environ.get("DEBUG", "False").lower() == "true")
