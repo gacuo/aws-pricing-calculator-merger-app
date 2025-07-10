@@ -8,6 +8,7 @@
     "watch": "tsc -w",
     "test": "jest",
     "cdk": "cdk",
+    "deploy:base": "cdk deploy CalculatorMergerBaseStack",
     "deploy:dev": "cdk deploy CalculatorMergerDevStack",
     "deploy:prod": "cdk deploy CalculatorMergerProdStack",
     "synth": "cdk synth"
