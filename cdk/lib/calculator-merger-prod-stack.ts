@@ -13,6 +13,8 @@ import * as acm from 'aws-cdk-lib/aws-certificatemanager';
 import * as cloudfront from 'aws-cdk-lib/aws-cloudfront';
 import * as origins from 'aws-cdk-lib/aws-cloudfront-origins';
 import * as wafv2 from 'aws-cdk-lib/aws-wafv2';
+import * as appscaling from 'aws-cdk-lib/aws-applicationautoscaling';
+import * as s3 from 'aws-cdk-lib/aws-s3';
 
 interface CalculatorMergerProdStackProps extends cdk.StackProps {
   stageName: string;
@@ -138,7 +140,7 @@ export class CalculatorMergerProdStack extends cdk.Stack {
       });
       
       // SSL証明書の作成
-      const certificate = new acm.Certificate(this, 'Certificate', {
+      const alb_certificate = new acm.Certificate(this, 'Certificate', {
         domainName: domainName,
         validation: acm.CertificateValidation.fromDns(hostedZone),
       });
@@ -146,7 +148,7 @@ export class CalculatorMergerProdStack extends cdk.Stack {
       // HTTPSリスナーの追加
       httpsListener = lb.addListener('HttpsListener', {
         port: 443,
-        certificates: [certificate],
+        certificates: [alb_certificate],
         protocol: elbv2.ApplicationProtocol.HTTPS,
         sslPolicy: elbv2.SslPolicy.RECOMMENDED,
       });
@@ -158,7 +160,7 @@ export class CalculatorMergerProdStack extends cdk.Stack {
         defaultAction: elbv2.ListenerAction.redirect({
           protocol: 'HTTPS',
           port: '443',
-          statusCode: 'HTTP_301',
+          permanent: true,
         }),
       });
       
@@ -330,6 +332,19 @@ export class CalculatorMergerProdStack extends cdk.Stack {
     
     // CloudFrontディストリビューションの作成（オプション）
     if (domainName) {
+      // CloudFront用の証明書を作成
+      const cloudfront_certificate = new acm.DnsValidatedCertificate(
+        this, 
+        'CloudFrontCertificate',
+        {
+          domainName: domainName,
+          hostedZone: route53.HostedZone.fromLookup(this, 'HostedZoneForCloudFront', {
+            domainName: domainName.split('.').slice(-2).join('.'), // 親ドメイン名を取得
+          }),
+          region: 'us-east-1', // CloudFrontは米国東部(バージニア北部)リージョンの証明書を要求
+        }
+      );
+      
       const distribution = new cloudfront.Distribution(this, 'Distribution', {
         defaultBehavior: {
           origin: new origins.LoadBalancerV2Origin(lb, {
@@ -341,11 +356,7 @@ export class CalculatorMergerProdStack extends cdk.Stack {
           viewerProtocolPolicy: cloudfront.ViewerProtocolPolicy.REDIRECT_TO_HTTPS,
         },
         domainNames: [domainName],
-        certificate: acm.Certificate.fromCertificateArn(
-          this,
-          'CloudFrontCertificate',
-          certificate.certificateArn
-        ),
+        certificate: cloudfront_certificate,
         enableLogging: true,
         logBucket: new s3.Bucket(this, 'CloudFrontLogsBucket', {
           removalPolicy: cdk.RemovalPolicy.RETAIN,
@@ -377,7 +388,4 @@ export class CalculatorMergerProdStack extends cdk.Stack {
   }
 }
 
-// appscalingのimport
-import * as appscaling from 'aws-cdk-lib/aws-applicationautoscaling';
-// s3のimport
-import * as s3 from 'aws-cdk-lib/aws-s3';
+
