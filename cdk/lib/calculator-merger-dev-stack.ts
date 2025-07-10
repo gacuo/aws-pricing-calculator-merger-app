@@ -94,23 +94,6 @@ export class CalculatorMergerDevStack extends cdk.Stack {
     // リスナーとターゲットグループの作成
     const listener = lb.addListener('Listener', { port: 80 });
     
-    // ECS Fargateサービスの作成
-    const service = new ecs.FargateService(this, 'CalculatorMergerService', {
-      cluster,
-      taskDefinition,
-      serviceName: `aws-calculator-merger-${stageName}-service`,
-      desiredCount: 1,
-      assignPublicIp: false,
-      healthCheckGracePeriod: cdk.Duration.seconds(60),
-      securityGroups: [
-        new ec2.SecurityGroup(this, 'ServiceSecurityGroup', {
-          vpc,
-          allowAllOutbound: true,
-          securityGroupName: `calculator-merger-${stageName}-service-sg`,
-        })
-      ],
-    });
-    
     // セキュリティグループの作成とルール追加
     const lbSecurityGroup = new ec2.SecurityGroup(this, 'LBSecurityGroup', {
       vpc,
@@ -124,10 +107,24 @@ export class CalculatorMergerDevStack extends cdk.Stack {
       'Allow HTTP traffic from anywhere'
     );
     
-    // サービスにALBを紐付け
-    listener.addTargets('CalculatorMergerTarget', {
+    // サービスのセキュリティグループを作成
+    const serviceSecurityGroup = new ec2.SecurityGroup(this, 'ServiceSecurityGroup', {
+      vpc,
+      allowAllOutbound: true,
+      securityGroupName: `calculator-merger-${stageName}-service-sg`,
+    });
+    
+    // LBからのトラフィックを許可
+    serviceSecurityGroup.addIngressRule(
+      lbSecurityGroup,
+      ec2.Port.tcp(80),
+      'Allow traffic from ALB'
+    );
+    
+    // ターゲットグループを先に作成
+    const targetGroup = listener.addTargets('CalculatorMergerTarget', {
       port: 80,
-      targets: [service],
+      targets: [],  // 後でサービスを追加
       healthCheck: {
         path: '/',
         interval: cdk.Duration.seconds(30),
@@ -135,6 +132,20 @@ export class CalculatorMergerDevStack extends cdk.Stack {
         healthyHttpCodes: '200',
       },
     });
+    
+    // ECS Fargateサービスの作成
+    const service = new ecs.FargateService(this, 'CalculatorMergerService', {
+      cluster,
+      taskDefinition,
+      serviceName: `aws-calculator-merger-${stageName}-service`,
+      desiredCount: 1,
+      assignPublicIp: false,
+      healthCheckGracePeriod: cdk.Duration.seconds(60),
+      securityGroups: [serviceSecurityGroup],
+    });
+    
+    // サービスをターゲットグループに登録
+    targetGroup.addTarget(service);
     
     // Auto Scaling設定
     const scalableTarget = service.autoScaleTaskCount({
@@ -152,10 +163,7 @@ export class CalculatorMergerDevStack extends cdk.Stack {
     // リクエスト数によるスケーリング
     scalableTarget.scaleOnRequestCount('RequestScaling', {
       requestsPerTarget: 1000,
-      targetGroup: listener.addTargets('AutoScalingTarget', {
-        port: 80,
-        targets: [service],
-      }),
+      targetGroup: targetGroup,
     });
     
     // CloudWatchアラームの作成
