@@ -1,5 +1,5 @@
 # ビルドステージ
-FROM python:3.10-slim AS builder
+FROM --platform=linux/amd64 python:3.10-slim AS builder
 
 WORKDIR /app
 
@@ -13,7 +13,7 @@ COPY requirements.txt .
 RUN pip wheel --no-cache-dir --wheel-dir /app/wheels -r requirements.txt
 
 # 実行ステージ
-FROM python:3.10-slim
+FROM --platform=linux/amd64 python:3.10-slim
 
 WORKDIR /app
 
