@@ -58,6 +58,76 @@ class CalculatorAPI:
         except Exception as e:
             logger.error(f"URL生成中にエラーが発生: {str(e)}", exc_info=True)
             return f"{self.base_url}#/estimate"
+            
+    def create_merged_estimate(self, estimate_data: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        マージされた見積もりデータからAWS Pricing Calculatorへのエクスポートを作成する
+        
+        Args:
+            estimate_data: マージされた見積もりデータ
+            
+        Returns:
+            Dict: 生成されたURL情報
+        """
+        try:
+            # AWS Pricing Calculator形式に変換
+            calculator_data = self._convert_to_calculator_format(estimate_data)
+            
+            # URLの生成
+            calculator_url = self.generate_calculator_url(calculator_data)
+            
+            # 結果を返す
+            return {
+                'url': calculator_url,
+                'instructions': '新しいURLが生成されました。リンク先でマージされた見積もりを確認できます。',
+                'status': 'success'
+            }
+        except Exception as e:
+            logger.error(f"マージ見積もり作成中にエラーが発生: {str(e)}", exc_info=True)
+            return {
+                'url': f"{self.base_url}#/estimate",
+                'instructions': 'エラーが発生しました。手動でAWS Pricing Calculatorにアクセスして見積もりを作成してください。',
+                'status': 'error',
+                'error': str(e)
+            }
+    
+    def _convert_to_calculator_format(self, estimate_data: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        内部形式からAWS Pricing Calculator形式に変換する
+        
+        Args:
+            estimate_data: 内部形式の見積もりデータ
+            
+        Returns:
+            Dict: AWS Pricing Calculator形式のデータ
+        """
+        # AWS Pricing Calculator形式のデータ構造
+        calculator_data = {
+            'name': estimate_data.get('name', 'Merged Estimate'),
+            'timeUnit': 'monthly',
+            'currency': estimate_data.get('metadata', {}).get('currency', 'USD'),
+            'regions': self._extract_regions(estimate_data),
+            'services': self._convert_services(estimate_data.get('services', []))
+        }
+        
+        return calculator_data
+    
+    def _extract_regions(self, estimate_data: Dict[str, Any]) -> List[str]:
+        """
+        見積もりデータから使用しているリージョンのリストを抽出する
+        
+        Args:
+            estimate_data: 見積もりデータ
+            
+        Returns:
+            List[str]: リージョンのリスト
+        """
+        regions = set()
+        for service in estimate_data.get('services', []):
+            if 'region' in service and service['region']:
+                regions.add(service['region'])
+        
+        return list(regions)
     
     def calculate_total_cost(self, estimate_data: Dict[str, Any]) -> Dict[str, str]:
         """
@@ -70,24 +140,54 @@ class CalculatorAPI:
             Dict: 月額、初期、年間コスト
         """
         try:
-            # 実際の実装では見積もりデータから総コストを計算します
-            # ここではサンプル実装としてモック値を返します
-            
             # サービスごとのコスト集計
             monthly_total = 0.0
             upfront_total = 0.0
             
-            # モック実装
+            # サービスコストの集計
             if 'services' in estimate_data:
                 for service in estimate_data['services']:
-                    if 'monthlyCost' in service:
-                        monthly_total += float(service['monthlyCost'])
-                    if 'upfrontCost' in service:
-                        upfront_total += float(service['upfrontCost'])
+                    # monthlyCostとupfrontCostの処理
+                    if isinstance(service.get('monthlyCost'), (int, float)):
+                        monthly_total += service['monthlyCost']
+                    elif isinstance(service.get('monthlyCost'), str):
+                        # 文字列から数値への変換
+                        try:
+                            cost_str = service['monthlyCost'].replace(',', '').replace(' USD', '')
+                            monthly_total += float(cost_str)
+                        except (ValueError, TypeError):
+                            logger.warning(f"月額コストの解析エラー: {service.get('monthlyCost')}")
+                    
+                    # upfrontCostの処理
+                    if isinstance(service.get('upfrontCost'), (int, float)):
+                        upfront_total += service['upfrontCost']
+                    elif isinstance(service.get('upfrontCost'), str):
+                        # 文字列から数値への変換
+                        try:
+                            cost_str = service['upfrontCost'].replace(',', '').replace(' USD', '')
+                            upfront_total += float(cost_str)
+                        except (ValueError, TypeError):
+                            logger.warning(f"初期コストの解析エラー: {service.get('upfrontCost')}")
+                            
+                    # monthly_costとupfront_costの処理 (別の形式)
+                    if isinstance(service.get('monthly_cost'), str):
+                        try:
+                            cost_str = service['monthly_cost'].replace(',', '').replace(' USD', '')
+                            monthly_total += float(cost_str)
+                        except (ValueError, TypeError):
+                            pass
+                    
+                    if isinstance(service.get('upfront_cost'), str):
+                        try:
+                            cost_str = service['upfront_cost'].replace(',', '').replace(' USD', '')
+                            upfront_total += float(cost_str)
+                        except (ValueError, TypeError):
+                            pass
             
-            # 12ヶ月分の計算
+            # 年間コストの計算（月額 × 12 + 初期コスト）
             annual_total = monthly_total * 12 + upfront_total
             
+            # 結果をフォーマット
             return {
                 'monthly': f"{monthly_total:,.2f} USD",
                 'upfront': f"{upfront_total:,.2f} USD",
@@ -130,6 +230,48 @@ class CalculatorAPI:
             logger.error(f"サービス情報抽出中にエラーが発生: {str(e)}", exc_info=True)
             
         return services
+        
+    def _convert_services(self, services: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+        """
+        内部サービス形式からAWS Pricing Calculator形式に変換する
+        
+        Args:
+            services: 内部形式のサービスリスト
+            
+        Returns:
+            List[Dict]: AWS Pricing Calculator形式のサービスリスト
+        """
+        calculator_services = []
+        
+        for service in services:
+            calc_service = {
+                'name': service.get('service_name', 'Unknown Service'),
+                'description': service.get('description', ''),
+                'region': service.get('region', 'us-east-1'),
+                'monthly': self._parse_cost_value(service.get('monthly_cost', '0.00')),
+                'upfront': self._parse_cost_value(service.get('upfront_cost', '0.00')),
+                'configuration': service.get('config', {})
+            }
+            calculator_services.append(calc_service)
+            
+        return calculator_services
+    
+    def _parse_cost_value(self, cost_str: str) -> float:
+        """
+        コスト文字列から数値を抽出する
+        
+        Args:
+            cost_str: コスト文字列（例: "1,234.56 USD"）
+            
+        Returns:
+            float: 数値としてのコスト
+        """
+        try:
+            # カンマと通貨単位を削除
+            clean_str = cost_str.replace(',', '').replace(' USD', '')
+            return float(clean_str)
+        except (ValueError, TypeError):
+            return 0.0
     
     def export_to_csv(self, estimate_data: Dict[str, Any], estimate_id: str, output_dir: str) -> str:
         """

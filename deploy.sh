@@ -72,9 +72,9 @@ if [ "$SKIP_IMAGE" = false ]; then
   echo "AWS ECRにログインしています..."
   aws ecr get-login-password --region $AWS_REGION | docker login --username AWS --password-stdin $AWS_ACCOUNT_ID.dkr.ecr.$AWS_REGION.amazonaws.com || print_error "ECRログインに失敗しました"
   
-  # Dockerイメージのビルド
-  echo "Dockerイメージをビルドしています..."
-  docker build -t aws-pricing-calculator-merger . || print_error "Dockerイメージのビルドに失敗しました"
+  # プラットフォームを指定してDockerイメージをビルド
+  echo "Dockerイメージをビルドしています（プラットフォーム: linux/amd64）..."
+  docker build --platform linux/amd64 -t aws-pricing-calculator-merger . || print_error "Dockerイメージのビルドに失敗しました"
   
   # ECRリポジトリURIの取得
   REPO_URI=$AWS_ACCOUNT_ID.dkr.ecr.$AWS_REGION.amazonaws.com/aws-pricing-calculator-merger

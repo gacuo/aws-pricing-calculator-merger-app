@@ -40,8 +40,8 @@ cd ..
 # AWS ECRにログイン
 aws ecr get-login-password --region ap-northeast-1 | docker login --username AWS --password-stdin $(aws sts get-caller-identity --query Account --output text).dkr.ecr.ap-northeast-1.amazonaws.com
 
-# Dockerイメージをビルド
-docker build -t aws-pricing-calculator-merger .
+# プラットフォームを指定してDockerイメージをビルド
+docker build --platform linux/amd64 -t aws-pricing-calculator-merger .
 
 # ECRリポジトリURIの取得
 export REPO_URI=$(aws ecr describe-repositories --repository-names aws-pricing-calculator-merger --query 'repositories[0].repositoryUri' --output text)
@@ -77,6 +77,25 @@ CannotPullContainerError: pull image manifest has been retried 1 time(s): failed
 ```
 
 これは、ECRリポジトリにイメージがプッシュされていないことを示しています。上記の「2. Dockerイメージのビルドとプッシュ」の手順を実行してください。
+
+### exec format error
+
+以下のようなエラーがECSタスクのログに表示される場合：
+
+```
+exec /usr/local/bin/python: exec format error
+```
+
+これは、Dockerイメージのアーキテクチャとターゲットの実行環境のアーキテクチャが一致していないことを示しています。このエラーは通常、ARM向けのイメージをx86_64のインスタンスで実行しようとした場合（またはその逆）に発生します。
+
+解決策:
+1. Dockerfileに`--platform=linux/amd64`フラグを追加する
+2. Dockerイメージのビルド時に`--platform linux/amd64`フラグを使用する
+
+```bash
+# 正しいプラットフォームを指定してビルド
+docker build --platform linux/amd64 -t aws-pricing-calculator-merger .
+```
 
 ### イメージプッシュ時のアクセス拒否エラー
 

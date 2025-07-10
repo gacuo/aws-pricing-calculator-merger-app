@@ -116,7 +116,7 @@ cd ..
 # ECRにログイン
 aws ecr get-login-password --region ap-northeast-1 | docker login --username AWS --password-stdin $(aws sts get-caller-identity --query Account --output text).dkr.ecr.ap-northeast-1.amazonaws.com
 # イメージビルドとプッシュ
-docker build -t aws-pricing-calculator-merger .
+docker build --platform linux/amd64 -t aws-pricing-calculator-merger .
 export REPO_URI=$(aws ecr describe-repositories --repository-names aws-pricing-calculator-merger --query 'repositories[0].repositoryUri' --output text)
 docker tag aws-pricing-calculator-merger:latest $REPO_URI:latest
 docker push $REPO_URI:latest
