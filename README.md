@@ -101,16 +101,46 @@ API エンドポイントの詳細については、[API リファレンス](doc
 
 ### AWS CDK を使用したデプロイ
 
+詳細なデプロイ手順は [デプロイガイド](docs/deployment-guide.md) を参照してください。
+
+#### 手動でのデプロイ
+
 ```bash
-# CDKのインストール
+# 1. ベースインフラのデプロイ（ECRリポジトリ）
 cd cdk
 npm install
+npm run deploy:base
 
-# 開発環境へのデプロイ
-npm run deploy:dev
+# 2. Dockerイメージのビルドとプッシュ
+cd ..
+# ECRにログイン
+aws ecr get-login-password --region ap-northeast-1 | docker login --username AWS --password-stdin $(aws sts get-caller-identity --query Account --output text).dkr.ecr.ap-northeast-1.amazonaws.com
+# イメージビルドとプッシュ
+docker build -t aws-pricing-calculator-merger .
+export REPO_URI=$(aws ecr describe-repositories --repository-names aws-pricing-calculator-merger --query 'repositories[0].repositoryUri' --output text)
+docker tag aws-pricing-calculator-merger:latest $REPO_URI:latest
+docker push $REPO_URI:latest
 
-# 本番環境へのデプロイ
-npm run deploy:prod
+# 3. アプリケーションスタックのデプロイ
+cd cdk
+npm run deploy:dev  # 開発環境
+# または
+npm run deploy:prod  # 本番環境
+```
+
+#### 自動デプロイスクリプト
+
+デプロイスクリプトを使用して簡単にデプロイすることもできます：
+
+```bash
+# 開発環境のデプロイ
+./deploy.sh dev
+
+# 本番環境のデプロイ
+./deploy.sh prod
+
+# イメージビルド・プッシュをスキップ
+./deploy.sh dev --skip-image
 ```
 
 ## ドキュメント
