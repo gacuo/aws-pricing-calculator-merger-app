@@ -107,16 +107,54 @@ class EstimateMerger:
         merged_service = base_service.copy()
         
         # コストの合算
-        upfront_cost = sum(float(service["upfront_cost"].replace(",", "")) for service in services)
-        monthly_cost = sum(float(service["monthly_cost"].replace(",", "")) for service in services)
-        yearly_cost = sum(float(service["yearly_cost"].replace(",", "")) if service["yearly_cost"] else 0 for service in services)
+        upfront_cost = 0.0
+        monthly_cost = 0.0
+        yearly_cost = 0.0
         
+        for service in services:
+            # upfront_cost 処理
+            if "upfront_cost" in service:
+                try:
+                    if isinstance(service["upfront_cost"], (int, float)):
+                        upfront_cost += service["upfront_cost"]
+                    elif isinstance(service["upfront_cost"], str):
+                        clean_str = service["upfront_cost"].replace(",", "").replace(" USD", "")
+                        upfront_cost += float(clean_str) if clean_str else 0.0
+                except (ValueError, TypeError):
+                    pass  # エラーの場合はスキップ
+                    
+            # monthly_cost 処理
+            if "monthly_cost" in service:
+                try:
+                    if isinstance(service["monthly_cost"], (int, float)):
+                        monthly_cost += service["monthly_cost"]
+                    elif isinstance(service["monthly_cost"], str):
+                        clean_str = service["monthly_cost"].replace(",", "").replace(" USD", "")
+                        monthly_cost += float(clean_str) if clean_str else 0.0
+                except (ValueError, TypeError):
+                    pass  # エラーの場合はスキップ
+                    
+            # yearly_cost 処理
+            if "yearly_cost" in service and service["yearly_cost"]:
+                try:
+                    if isinstance(service["yearly_cost"], (int, float)):
+                        yearly_cost += service["yearly_cost"]
+                    elif isinstance(service["yearly_cost"], str):
+                        clean_str = service["yearly_cost"].replace(",", "").replace(" USD", "")
+                        yearly_cost += float(clean_str) if clean_str else 0.0
+                except (ValueError, TypeError):
+                    pass  # エラーの場合はスキップ
+        
+        # 年間コストが正しく計算されていない場合は再計算
+        if yearly_cost == 0 and monthly_cost > 0:
+            yearly_cost = monthly_cost * 12 + upfront_cost
+            
         merged_service["upfront_cost"] = f"{upfront_cost:,.2f}"
         merged_service["monthly_cost"] = f"{monthly_cost:,.2f}"
         merged_service["yearly_cost"] = f"{yearly_cost:,.2f}"
         
         # 説明の統合
-        descriptions = list(set(service["description"] for service in services if service["description"]))
+        descriptions = list(set(service["description"] for service in services if service.get("description")))
         merged_service["description"] = ", ".join(descriptions) if descriptions else ""
         
         # 設定の統合

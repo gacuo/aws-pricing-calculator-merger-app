@@ -97,6 +97,15 @@ class EstimateMerger:
         Returns:
             List[Dict]: マージされたサービスデータのリスト
         """
+        # マージ対象のリージョンを収集（実際に使用されているリージョンのみ）
+        target_regions = set()
+        for estimate in estimate_data_list:
+            for service in estimate.get('services', []):
+                if service.get('region'):
+                    target_regions.add(service.get('region'))
+        
+        logger.info(f"マージ対象のリージョン: {target_regions}")
+        
         # サービスをキーでグループ化する
         # キーは「サービス名_リージョン」形式
         service_groups = defaultdict(list)
@@ -104,10 +113,17 @@ class EstimateMerger:
         for estimate in estimate_data_list:
             for service in estimate.get('services', []):
                 service_name = service.get('name', 'Unknown Service')
-                region = service.get('region', 'us-east-1')
-                key = f"{service_name}_{region}"
+                region = service.get('region')
                 
-                service_groups[key].append(service)
+                # リージョンが指定されていないか、実際に使用されているリージョンの場合のみマージ対象とする
+                if not region or region in target_regions:
+                    if not region:
+                        region = 'us-east-1'  # デフォルトリージョン
+                        
+                    key = f"{service_name}_{region}"
+                    service_groups[key].append(service)
+                else:
+                    logger.warning(f"未使用リージョンのサービスをスキップ: {service_name}, リージョン: {region}")
         
         # グループごとにマージ
         merged_services = []
@@ -140,8 +156,36 @@ class EstimateMerger:
         region = first_service.get('region', 'us-east-1')
         
         # コスト合算
-        monthly_cost = sum(float(service.get('monthlyCost', 0)) for service in services)
-        upfront_cost = sum(float(service.get('upfrontCost', 0)) for service in services)
+        monthly_cost = 0.0
+        upfront_cost = 0.0
+        
+        # 各サービスのコストを正確に集計
+        for service in services:
+            # monthlyCostの処理
+            if isinstance(service.get('monthlyCost'), (int, float)):
+                monthly_cost += service['monthlyCost']
+            elif isinstance(service.get('monthlyCost'), str):
+                try:
+                    cost_str = service['monthlyCost']
+                    if cost_str:
+                        # 数値以外の文字を削除
+                        clean_str = ''.join(c for c in cost_str if c.isdigit() or c == '.')
+                        monthly_cost += float(clean_str) if clean_str else 0.0
+                except (ValueError, TypeError):
+                    logger.warning(f"月額コスト '{service.get('monthlyCost')}' の解析エラー")
+            
+            # upfrontCostの処理
+            if isinstance(service.get('upfrontCost'), (int, float)):
+                upfront_cost += service['upfrontCost']
+            elif isinstance(service.get('upfrontCost'), str):
+                try:
+                    cost_str = service['upfrontCost']
+                    if cost_str:
+                        # 数値以外の文字を削除
+                        clean_str = ''.join(c for c in cost_str if c.isdigit() or c == '.')
+                        upfront_cost += float(clean_str) if clean_str else 0.0
+                except (ValueError, TypeError):
+                    logger.warning(f"初期コスト '{service.get('upfrontCost')}' の解析エラー")
         
         # 設定の統合
         configs = [service.get('config', {}) for service in services]
